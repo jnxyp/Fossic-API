@@ -1,0 +1,37 @@
+<mxfile host="Electron" modified="2025-04-11T20:57:54.992Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.6.5 Chrome/114.0.5735.243 Electron/25.3.1 Safari/537.36" etag="JrHmj14XWOI8u7wbiob1" version="21.6.5" type="device">
+  <diagram id="C5RBs43oDa-KdzZeNtuy" name="Page-1">
+    <mxGraphModel dx="619" dy="358" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-0" />
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-1" parent="WIyWlLk6GJQsqaUBKTNV-0" />
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-3" value="Fossic Server" style="swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="WIyWlLk6GJQsqaUBKTNV-1">
+          <mxGeometry x="10" y="10" width="420" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="r9ymkADs-F_KL88GD-uQ-3" source="r9ymkADs-F_KL88GD-uQ-0" target="r9ymkADs-F_KL88GD-uQ-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-0" value="MySQL" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="r9ymkADs-F_KL88GD-uQ-3">
+          <mxGeometry x="70" y="50" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-1" value="Fossic Discuz&lt;br&gt;PHP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="r9ymkADs-F_KL88GD-uQ-3">
+          <mxGeometry x="40" y="190" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;" edge="1" parent="r9ymkADs-F_KL88GD-uQ-3" source="r9ymkADs-F_KL88GD-uQ-1" target="r9ymkADs-F_KL88GD-uQ-0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="r9ymkADs-F_KL88GD-uQ-3" source="r9ymkADs-F_KL88GD-uQ-4" target="r9ymkADs-F_KL88GD-uQ-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-4" value="Fossic API&lt;br&gt;Python (fastapi)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="r9ymkADs-F_KL88GD-uQ-3">
+          <mxGeometry x="250" y="60" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;" edge="1" parent="r9ymkADs-F_KL88GD-uQ-3" source="r9ymkADs-F_KL88GD-uQ-6" target="r9ymkADs-F_KL88GD-uQ-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r9ymkADs-F_KL88GD-uQ-6" value="Fossic 网页前端" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="r9ymkADs-F_KL88GD-uQ-3">
+          <mxGeometry x="250" y="190" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
