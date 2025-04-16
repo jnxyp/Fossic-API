@@ -1,41 +1,42 @@
-from sqlalchemy import PrimaryKeyConstraint
-from sqlmodel import Field, SQLModel
-
-class ForumTypeOption(SQLModel, table=True):
-    __tablename__ = 'pre_forum_typeoption'  # type: ignore
-    # primary key
-    optionid: int = Field(primary_key=True)
-    # other fields
-    title: str
-    identifier: str
-    type: str
-    rules: str
+from enum import Enum
+from typing import List
+from sqlmodel import SQLModel
 
 
-class ForumTypeOptionVar(SQLModel, table=True):
-    __tablename__ = 'pre_forum_typeoptionvar' # type: ignore
-    __table_args__ = (
-        PrimaryKeyConstraint('sortid', 'tid', 'fid', 'optionid'),
-    )
-    # primary keys
-    sortid:str
-    tid:int = Field(foreign_key='pre_forum_thread.tid')
-    fid:int
-    optionid:int = Field(foreign_key='pre_forum_typeoption.optionid')
-    # other fields
-    expiration:int
-    value:str
-    
-class Thread(SQLModel, table=True):
-    __tablename__ = 'pre_forum_thread'  # type: ignore
-    # primary key
-    tid: int = Field(primary_key=True)
-    # other fields
-    fid: int
-    sortid: int
-    author: str
-    authorid: int
-    subject: str
-    digest: int # 是否精华帖 0 否 1-3 精华1-3
-    recommends: int # 推荐数
+class ModInfoType(Enum):
+    ORIGINAL = 1
+    TRANSLATED = 3
+    REPOSTED = 2
 
+
+class ModInfo(SQLModel):
+    mod_info_type: ModInfoType
+    mod_id: str
+    mod_name_cn: str
+    mod_author: str
+    mod_category: str  # todo: Enum from DB
+    mod_version: str
+    mod_safe_rm: bool
+    mod_dependencies: List[str] = []
+    mod_conflicts: List[str] = []
+    mod_short_desc: str
+    mod_language: str  # todo: Enum from DB
+    mod_update_date: str  # todo: DateTime from DB
+
+
+class ModInfoOriginal(ModInfo):
+    mod_info_type: ModInfoType = ModInfoType.ORIGINAL
+    mod_name_en: str | None = None
+
+
+class ModInfoTranslated(ModInfo):
+    mod_info_type: ModInfoType = ModInfoType.TRANSLATED
+    mod_name_en: str
+    mod_publish_site: str
+    mod_translator: str
+
+
+class ModInfoReposted(ModInfo):
+    mod_info_type: ModInfoType = ModInfoType.REPOSTED
+    mod_name_en: str
+    mod_publish_site: str
