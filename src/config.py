@@ -9,5 +9,6 @@ CONFIG = {
         "user": getenv("DB_USER"),
         "password": getenv("DB_PASSWORD"),
         "db": getenv("DB_DATABASE"),
-    }
+    },
+    "debug": getenv("DEBUG", "false").lower() == "true",
 }

@@ -8,8 +8,11 @@ host = CONFIG["db"]["host"]
 port = CONFIG["db"]["port"]
 db = CONFIG["db"]["db"]
 
-engine = create_engine(f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}")
+engine = create_engine(f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}", echo=CONFIG["debug"])
 
 def get_session() -> Generator[Session, None, None]:
     with Session(engine) as session:
         yield session
+        
+def get_session_sync() -> Session:
+    return Session(engine)

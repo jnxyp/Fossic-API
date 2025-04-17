@@ -1,5 +1,7 @@
+from typing import Dict
 from sqlalchemy import PrimaryKeyConstraint
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, Session, col, select
+from phpserialize import loads
 
 class ForumTypeOption(SQLModel, table=True):
     __tablename__ = 'pre_forum_typeoption'  # type: ignore
@@ -10,6 +12,41 @@ class ForumTypeOption(SQLModel, table=True):
     identifier: str
     type: str
     rules: str
+    
+    @classmethod
+    def get_options(cls, session:Session, optionid:int) -> Dict[str, str]:
+        statement = select(cls).where(col(cls.optionid) == optionid).limit(1)
+        result = session.exec(statement).first()
+        
+        if result is None:
+            raise ValueError(f"Option with id {optionid} not found")
+        
+        options = {}
+        if 'choices' in result.rules:
+            obj = loads(result.rules.encode('utf-8'))
+            if isinstance(obj, dict):
+                choices_str = obj['choices'.encode('utf-8')].decode('utf-8')
+                if isinstance(choices_str, str):
+                    for row in choices_str.split('\r\n'):
+                        key, value = row.split('=')
+                        options[key] = value
+                else:
+                    raise ValueError(f"Invalid choices format for option {optionid}")
+            else:
+                raise ValueError(f"Invalid rules format for option {optionid}")
+        return options
+        
+    @classmethod
+    def get_game_versions(cls, session:Session) -> Dict[str, str]:
+        return cls.get_options(session, 26)
+    
+    @classmethod
+    def get_mod_languages(cls, session:Session) -> Dict[str, str]:
+        return cls.get_options(session, 29)
+    
+    @classmethod
+    def get_mod_dependencies(cls, session:Session) -> Dict[str, str]:
+        return cls.get_options(session, 19)
 
 class ForumTypeOptionVar(SQLModel, table=True):
     __tablename__ = 'pre_forum_typeoptionvar' # type: ignore
@@ -17,7 +54,7 @@ class ForumTypeOptionVar(SQLModel, table=True):
         PrimaryKeyConstraint('sortid', 'tid', 'fid', 'optionid'),
     )
     # primary keys
-    sortid:str
+    sortid:int
     tid:int = Field(foreign_key='pre_forum_thread.tid')
     fid:int
     optionid:int = Field(foreign_key='pre_forum_typeoption.optionid')
@@ -25,7 +62,7 @@ class ForumTypeOptionVar(SQLModel, table=True):
     expiration:int
     value:str
     
-class Thread(SQLModel, table=True):
+class ForumThread(SQLModel, table=True):
     __tablename__ = 'pre_forum_thread'  # type: ignore
     # primary key
     tid: int = Field(primary_key=True)
@@ -38,3 +75,9 @@ class Thread(SQLModel, table=True):
     digest: int # 是否精华帖 0 否 1-3 精华1-3
     recommends: int # 推荐数
 
+if __name__ == "__main__":
+    from db import get_session_sync
+    session = get_session_sync()
+    # test ForumTypeOption
+    options = ForumTypeOption.get_options(session, 19)
+    print(options)

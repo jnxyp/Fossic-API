@@ -4,3 +4,4 @@ PyMySQL==1.1.1
 cryptography==44.0.2
 uvicorn==0.34.0
 python-dotenv==1.1.0
+phpserialize==1.3
