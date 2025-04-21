@@ -49,21 +49,20 @@ class ModInfo(SQLModel):
     mod_info_type: ModInfoType
     mod_id: str
     mod_name_cn: str
-    mod_author: str
-    mod_category: str  # todo: Enum from DB
-    mod_game_version: str  # todo: Enum from DB, db field name: modVersion
+    mod_author_names: List[str]
+    mod_category: str
+    mod_game_versions: List[str]
     mod_version: str  # db field name: modReleaseVersion
     mod_safe_remove: bool
-    mod_dependencies: List[str] = []
-    mod_conflicts: List[str] = []
+    mod_dependency_names: List[str] = []
+    mod_conflict_names: List[str] = []
     mod_short_description: str
-    mod_language: str  # todo: Enum from DB
+    mod_language: str
     mod_update_date: str  # todo: DateTime from DB
+    mod_publish_urls: List[str]
 
     admin_notes: AdminNotes | None = None
     thread_meta: ThreadMeta | None = None
-
-
 
 class ModInfoOriginal(ModInfo):
     mod_info_type: ModInfoType = ModInfoType.ORIGINAL
@@ -73,14 +72,12 @@ class ModInfoOriginal(ModInfo):
 class ModInfoTranslated(ModInfo):
     mod_info_type: ModInfoType = ModInfoType.TRANSLATED
     mod_name_en: str
-    mod_publish_url: str  # db field name: modPublishSite
-    mod_translator: str
+    mod_translator_names: List[str]
 
 
 class ModInfoReposted(ModInfo):
     mod_info_type: ModInfoType = ModInfoType.REPOSTED
     mod_name_en: str
-    mod_publish_url: str  # db field name: modPublishSite
 
 ModInfoTypes = ModInfoOriginal | ModInfoTranslated | ModInfoReposted
 

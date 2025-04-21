@@ -1,3 +1,4 @@
+from functools import cache
 from typing import Dict
 from sqlalchemy import PrimaryKeyConstraint
 from sqlmodel import Field, SQLModel, Session, col, select
@@ -21,24 +22,27 @@ class ForumTypeOption(SQLModel, table=True):
         if result is None:
             raise ValueError(f"Option with id {optionid} not found")
         
-        options = {}
-        if 'choices' in result.rules:
-            obj = loads(result.rules.encode('utf-8'))
+        return cls.extract_choices_from_rules(result.rules)
+    
+    @staticmethod
+    def extract_choices_from_rules(rules: str) -> Dict[str, str]:
+        choices = {}
+        if 'choices' in rules:
+            obj = loads(rules.encode('utf-8'))
             if isinstance(obj, dict):
                 choices_str = obj['choices'.encode('utf-8')].decode('utf-8')
-                if isinstance(choices_str, str):
-                    for row in choices_str.split('\r\n'):
-                        key, value = row.split('=')
-                        options[key] = value
-                else:
-                    raise ValueError(f"Invalid choices format for option {optionid}")
+                for row in choices_str.split('\r\n'):
+                    key, value = row.split('=')
+                    choices[key.strip()] = value.strip()
             else:
-                raise ValueError(f"Invalid rules format for option {optionid}")
-        return options
-        
+                raise ValueError(f"Invalid rules format")
+        else:
+            raise ValueError(f"No choices found in rules")
+        return choices
+    
     @classmethod
     def get_game_versions(cls, session:Session) -> Dict[str, str]:
-        return cls.get_options(session, 26)
+        return cls.get_options(session, 9)
     
     @classmethod
     def get_mod_languages(cls, session:Session) -> Dict[str, str]:
@@ -47,6 +51,14 @@ class ForumTypeOption(SQLModel, table=True):
     @classmethod
     def get_mod_dependencies(cls, session:Session) -> Dict[str, str]:
         return cls.get_options(session, 19)
+    
+    @classmethod
+    def get_mod_types(cls, session:Session) -> Dict[str, str]:
+        return cls.get_options(session, 12)
+    
+    @classmethod
+    def get_mod_safe_rm(cls, session:Session) -> Dict[str, str]:
+        return cls.get_options(session, 13)
 
 class ForumTypeOptionVar(SQLModel, table=True):
     __tablename__ = 'pre_forum_typeoptionvar' # type: ignore
@@ -79,5 +91,5 @@ if __name__ == "__main__":
     from db import get_session_sync
     session = get_session_sync()
     # test ForumTypeOption
-    options = ForumTypeOption.get_options(session, 19)
+    options = ForumTypeOption.get_mod_types(session)
     print(options)

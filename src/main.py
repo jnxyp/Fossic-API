@@ -1,7 +1,17 @@
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 from fastapi import FastAPI
-from api_routes import router
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from api import router
+from fastapi_cache import FastAPICache
+from fastapi_cache.decorator import cache
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    FastAPICache.init(InMemoryBackend(), prefix="cache")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(router, prefix="/api", tags=["api"])
 
