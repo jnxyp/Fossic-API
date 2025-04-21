@@ -58,7 +58,7 @@ class ModInfo(SQLModel):
     mod_conflict_names: List[str] = []
     mod_short_description: str
     mod_language: str
-    mod_update_date: str  # todo: DateTime from DB
+    mod_update_date: int
     mod_publish_urls: List[str]
 
     admin_notes: AdminNotes | None = None

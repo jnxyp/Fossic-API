@@ -1,2 +1,7 @@
 def get_thread_url(tid: int) -> str:
     return f"https://www.fossic.org/thread-{tid}-1-1.html"
+
+def date_string_to_timestamp(date_string: str) -> int:
+    from datetime import datetime
+    dt = datetime.strptime(date_string, '%Y-%m-%d')
+    return int(dt.timestamp())

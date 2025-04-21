@@ -1,13 +1,15 @@
 from collections import defaultdict
 from typing import List
+import logging
 
 from sqlmodel import Session, select, col
 
 from db import get_session_sync
 from models import ModInfoOriginal, ModInfoReposted, ModInfoTranslated, ModInfoType, ModInfoTypes, ThreadFeaturedLevel
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
-from utils import get_thread_url
+from utils import date_string_to_timestamp, get_thread_url
 
+logger = logging.getLogger(__name__)
 
 class BaseDAO:
     def __init__(self, session: Session):
@@ -18,7 +20,6 @@ class ModIndexDAO(BaseDAO):
     ModInfoIdentifierMapping = {
         "modID": "mod_id",
         "modReleaseVersion": "mod_version",
-        "modUpdateDate": "mod_update_date",
         "modShortDes": "mod_short_description",
     }
 
@@ -138,10 +139,10 @@ class ModIndexDAO(BaseDAO):
                 mod_info[tid]["mod_game_versions"] |= versions
                 continue
             if identifier == "modLanguage":
-                mod_info[tid]["mod_language"] = mod_languages[value or "3"] # If the value is empty, default to "3": other languages
+                mod_info[tid]["mod_language"] = mod_languages[value or "3"] # 如果没有值，默认是3（其它）
                 continue
             if identifier == "modType":
-                if value == "5": # 5 is the legacy mod type for "内容"
+                if value == "5": # 如果是5（原内容类mod），则需要将其转换为2（内容类mod）
                     value = "2"
                 mod_info[tid]["mod_category"] = mod_types[value]
                 continue
@@ -154,12 +155,19 @@ class ModIndexDAO(BaseDAO):
             if identifier == "modPublishSite":
                 mod_info[tid]["mod_publish_urls"].append(value)
                 continue
+            if identifier == "modUpdateDate":
+                try:
+                    mod_info[tid]["mod_update_date"] = date_string_to_timestamp(value.replace("/", "-").replace(".", "-"))
+                except ValueError:
+                    logger.warning(f"帖子 {tid} 中包含无效的日期格式: {value}，将返回-1")
+                    mod_info[tid]["mod_update_date"] = -1
+                continue
 
         mod_info_objects = []
         for tid, info in mod_info.items():
             mod_info_type = info["mod_info_type"]
             if not "mod_id" in info:
-                continue  # Skip if mod_id is not present (for legacy mod posts)
+                continue  # 跳过没有 mod_id 的老帖
             if mod_info_type == ModInfoType.ORIGINAL:
                 mod_info_objects.append(ModInfoOriginal(**info))
             elif mod_info_type == ModInfoType.TRANSLATED:
