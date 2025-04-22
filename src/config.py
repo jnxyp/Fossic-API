@@ -11,4 +11,9 @@ CONFIG = {
         "db": getenv("DB_DATABASE"),
     },
     "debug": getenv("DEBUG", "false").lower() == "true",
+    "fossic": {
+        "url": "https://www.fossic.org",
+        "mod_fids": {46,60,78},
+        "modding_fids": {71},
+    }
 }

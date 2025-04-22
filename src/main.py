@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from api import router
 from fastapi_cache import FastAPICache
-from fastapi_cache.decorator import cache
+import log
+
+logger = log.setup_custom_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:

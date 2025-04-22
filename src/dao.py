@@ -1,23 +1,26 @@
 from collections import defaultdict
 from typing import List
-import logging
 
 from sqlmodel import Session, select, col
 
+from config import CONFIG
 from db import get_session_sync
+import log
 from models import ModInfoOriginal, ModInfoReposted, ModInfoTranslated, ModInfoType, ModInfoTypes, ThreadFeaturedLevel
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
 from utils import date_string_to_timestamp, get_thread_url
 
-logger = logging.getLogger(__name__)
+logger = log.setup_custom_logger(__name__)
+
+FIDS = CONFIG["fossic"]["mod_fids"] | CONFIG["fossic"]["modding_fids"]
 
 class BaseDAO:
     def __init__(self, session: Session):
         self.session = session
 
 
-class ModIndexDAO(BaseDAO):
-    ModInfoIdentifierMapping = {
+class ModDAO(BaseDAO):
+    mod_info_identifier_mapping = {
         "modID": "mod_id",
         "modReleaseVersion": "mod_version",
         "modShortDes": "mod_short_description",
@@ -31,12 +34,14 @@ class ModIndexDAO(BaseDAO):
         mod_types = ForumTypeOption.get_mod_types(self.session)
         mod_safe_rm = ForumTypeOption.get_mod_safe_rm(self.session)
 
-        statement = select(ForumTypeOption, ForumTypeOptionVar, ForumThread)\
-            .join(ForumTypeOptionVar, col(ForumTypeOption.optionid) == col(ForumTypeOptionVar.optionid))\
-            .where(col(ForumTypeOptionVar.sortid).in_([1, 2, 3]))\
-            .join(ForumThread, col(ForumThread.tid) == col(ForumTypeOptionVar.tid))\
-            .where(col(ForumThread.sortid) != 0)\
-            .order_by(col(ForumTypeOptionVar.tid).desc())
+        statement = (select(ForumTypeOption, ForumTypeOptionVar, ForumThread)
+                     .join(ForumTypeOptionVar, col(ForumTypeOption.optionid) == col(ForumTypeOptionVar.optionid))
+                     .where(col(ForumTypeOptionVar.sortid).in_([1, 2, 3]))
+                     .join(ForumThread, col(ForumThread.tid) == col(ForumTypeOptionVar.tid))
+                     .where(col(ForumThread.sortid) != 0)
+                     .where(col(ForumThread.displayorder) >= 0)
+                     .where(col(ForumThread.fid).in_(FIDS))
+                     .order_by(col(ForumTypeOptionVar.tid).desc()))
 
         results = self.session.exec(statement).all()
 
@@ -53,7 +58,8 @@ class ModIndexDAO(BaseDAO):
                 mod_info[tid]["thread_meta"] = {
                     "tid": tid,
                     "uid": thread.authorid,
-                    "featured": ThreadFeaturedLevel.from_digest(thread.digest),
+                    "fid": thread.fid,
+                    "featured_level": ThreadFeaturedLevel.from_digest(thread.digest),
                     "recommend_weight": thread.recommends,
                 }
 
@@ -73,11 +79,11 @@ class ModIndexDAO(BaseDAO):
                     option_var.sortid)
             if "mod_publish_urls" not in mod_info[tid]:
                 mod_info[tid]["mod_publish_urls"] = [get_thread_url(tid)]
-                
-            if identifier in self.ModInfoIdentifierMapping:
-                mod_info[tid][self.ModInfoIdentifierMapping[identifier]] = value
+
+            if identifier in self.mod_info_identifier_mapping:
+                mod_info[tid][self.mod_info_identifier_mapping[identifier]] = value
                 continue
-            
+
             if identifier == "modName_cn":
                 mod_info[tid]["mod_name_cn"] = value.strip().replace("\\", "")
                 continue
@@ -139,10 +145,11 @@ class ModIndexDAO(BaseDAO):
                 mod_info[tid]["mod_game_versions"] |= versions
                 continue
             if identifier == "modLanguage":
-                mod_info[tid]["mod_language"] = mod_languages[value or "3"] # 如果没有值，默认是3（其它）
+                # 如果没有值，默认是3（其它）
+                mod_info[tid]["mod_language"] = mod_languages[value or "3"]
                 continue
             if identifier == "modType":
-                if value == "5": # 如果是5（原内容类mod），则需要将其转换为2（内容类mod）
+                if value == "5":  # 如果是5（原内容类mod），则需要将其转换为2（内容类mod）
                     value = "2"
                 mod_info[tid]["mod_category"] = mod_types[value]
                 continue
@@ -157,7 +164,8 @@ class ModIndexDAO(BaseDAO):
                 continue
             if identifier == "modUpdateDate":
                 try:
-                    mod_info[tid]["mod_update_date"] = date_string_to_timestamp(value.replace("/", "-").replace(".", "-"))
+                    mod_info[tid]["mod_update_date"] = date_string_to_timestamp(
+                        value.replace("/", "-").replace(".", "-"))
                 except ValueError:
                     logger.warning(f"帖子 {tid} 中包含无效的日期格式: {value}，将返回-1")
                     mod_info[tid]["mod_update_date"] = -1
@@ -166,7 +174,8 @@ class ModIndexDAO(BaseDAO):
         mod_info_objects = []
         for tid, info in mod_info.items():
             mod_info_type = info["mod_info_type"]
-            if not "mod_id" in info:
+            if not "mod_id" in info or not info["mod_id"]:
+                logger.warning(f"帖子 {tid} 中没有 mod_id，跳过该帖子")
                 continue  # 跳过没有 mod_id 的老帖
             if mod_info_type == ModInfoType.ORIGINAL:
                 mod_info_objects.append(ModInfoOriginal(**info))
@@ -177,6 +186,9 @@ class ModIndexDAO(BaseDAO):
             else:
                 raise ValueError(f"Unknown mod info type: {mod_info_type}")
 
+        def sort_key(mod): return (mod.mod_id, mod.thread_meta.tid)
+        mod_info_objects.sort(key=sort_key)
+
         return mod_info_objects
 
 
@@ -184,7 +196,7 @@ if __name__ == "__main__":
     from db import get_session
 
     with get_session_sync() as session:
-        dao = ModIndexDAO(session)
+        dao = ModDAO(session)
         mods = dao.get_all_mods()
         for mod in mods:
             print(mod.model_dump_json())

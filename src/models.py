@@ -37,7 +37,8 @@ class ThreadFeaturedLevel(Enum):
 class ThreadMeta(SQLModel):
     tid: int
     uid: int
-    featured: ThreadFeaturedLevel
+    fid: int # 版块ID
+    featured_level: ThreadFeaturedLevel
     recommend_weight: int  # 推荐数
 
 
@@ -61,8 +62,8 @@ class ModInfo(SQLModel):
     mod_update_date: int
     mod_publish_urls: List[str]
 
-    admin_notes: AdminNotes | None = None
-    thread_meta: ThreadMeta | None = None
+    admin_notes: AdminNotes
+    thread_meta: ThreadMeta
 
 class ModInfoOriginal(ModInfo):
     mod_info_type: ModInfoType = ModInfoType.ORIGINAL
@@ -81,5 +82,3 @@ class ModInfoReposted(ModInfo):
 
 ModInfoTypes = ModInfoOriginal | ModInfoTranslated | ModInfoReposted
 
-class ModIndex(SQLModel):
-    mods: List[ModInfoTypes] = []
