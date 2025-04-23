@@ -3,8 +3,8 @@ Description=Fossic API FastAPI Service
 After=network.target
 
 [Service]
-User=ubuntu
-Group=ubuntu
+User=www-data
+Group=www-data
 WorkingDirectory=/opt/Fossic-API/src
 ExecStart=/opt/Fossic-API/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
