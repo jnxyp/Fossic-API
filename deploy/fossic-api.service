@@ -5,8 +5,8 @@ After=network.target
 [Service]
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/opt/Fossic-API
-ExecStart=/opt/Fossic-API/.venv/bin/uvicorn src/main:app --host 127.0.0.1 --port 8000
+WorkingDirectory=/opt/Fossic-API/src
+ExecStart=/opt/Fossic-API/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3
 Environment="PATH=/opt/Fossic-API/.venv/bin"
