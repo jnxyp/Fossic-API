@@ -13,6 +13,7 @@ CONFIG = {
     "debug": getenv("DEBUG", "false").lower() == "true",
     "fossic": {
         "url": "https://www.fossic.org",
+        "api_url": "https://api.fossic.org",
         "mod_fids": {46,60,78},
         "modding_fids": {71},
     },

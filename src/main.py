@@ -34,4 +34,4 @@ app.include_router(router, prefix="/api", tags=["api"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Fossic API is up and running!"}
+    return {"message": f"欢迎来到 Fossic API！请访问 {CONFIG['fossic']['api_url']}/docs 查看 API 文档。API路径为 {CONFIG['fossic']['api_url']}/api/"}

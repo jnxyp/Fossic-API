@@ -14,6 +14,7 @@ modding_fids = CONFIG["fossic"]["modding_fids"]
 class ModCache:
     def __init__(self):
         self._mods: list[ModInfoTypes] = []
+        self._last_updated = -1
         
     def refresh(self, session:Session | None = None) -> bool:
         logger.info("开始刷新 ModCache")
@@ -24,6 +25,7 @@ class ModCache:
             logger.error(f"刷新 ModCache 失败: {e}")
             return False
         logger.info(f"ModCache 刷新完成, 共 {len(self._mods)} 个有效 mod")
+        self._last_updated = int(time.time())
         return True
         
     def get_all_mods(self) -> list[ModInfoTypes]:
@@ -31,5 +33,8 @@ class ModCache:
     
     def get_all_mods_no_modding(self) -> list[ModInfoTypes]:
         return [mod for mod in self._mods if mod.thread_meta.fid not in modding_fids]
+
+    def get_update_time(self) -> int:
+        return self._last_updated
 
 mod_cache = ModCache()
