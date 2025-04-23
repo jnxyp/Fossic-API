@@ -1,0 +1,15 @@
+[Unit]
+Description=Fossic API FastAPI Service
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/Fossic-API
+ExecStart=/opt/Fossic-API/.venv/bin/uvicorn src/main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+Environment="PATH=/opt/Fossic-API/.venv/bin"
+
+[Install]
+WantedBy=multi-user.target

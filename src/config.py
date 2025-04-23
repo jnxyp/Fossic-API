@@ -15,5 +15,9 @@ CONFIG = {
         "url": "https://www.fossic.org",
         "mod_fids": {46,60,78},
         "modding_fids": {71},
-    }
+    },
+    "cache": {
+        "api_cache_time": int(getenv("API_CACHE_TIME", "300")),
+        "mod_cache_time": int(getenv("MOD_CACHE_TIME", "300")),
+    },
 }
