@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import List
 
 from sqlmodel import Session, select, col
 
@@ -26,7 +25,19 @@ class ModDAO(BaseDAO):
         "modShortDes": "mod_short_description",
     }
 
-    def get_all_mods(self) -> List[ModInfoTypes]:
+    def get_game_versions(self) -> list[str]:
+        game_versions = ForumTypeOption.get_game_versions(self.session)
+        return list(game_versions.values())
+
+    def get_mod_languages(self) -> list[str]:
+        mod_languages = ForumTypeOption.get_mod_languages(self.session)
+        return list(mod_languages.values())
+
+    def get_mod_categories(self) -> list[str]:
+        mod_types = ForumTypeOption.get_mod_types(self.session)
+        return list(mod_types.values())
+
+    def get_all_mods(self) -> list[ModInfoTypes]:
         # Fetch option values from the database
         game_versions = ForumTypeOption.get_game_versions(self.session)
         mod_languages = ForumTypeOption.get_mod_languages(self.session)

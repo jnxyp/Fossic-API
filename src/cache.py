@@ -14,12 +14,18 @@ modding_fids = CONFIG["fossic"]["modding_fids"]
 class ModCache:
     def __init__(self):
         self._mods: list[ModInfoTypes] = []
+        self._game_versions: list[str] = []
+        self._mod_languages: list[str] = []
+        self._mod_categories: list[str] = []
         self._last_updated = -1
         
     def refresh(self, session:Session | None = None) -> bool:
         logger.info("开始刷新 ModCache")
         try:
             mod_dao = ModDAO(session or get_session_sync())
+            self._game_versions = mod_dao.get_game_versions()
+            self._mod_languages = mod_dao.get_mod_languages()
+            self._mod_categories = mod_dao.get_mod_categories()
             self._mods = mod_dao.get_all_mods()
         except Exception as e:
             logger.error(f"刷新 ModCache 失败: {e}")
@@ -36,5 +42,14 @@ class ModCache:
 
     def get_update_time(self) -> int:
         return self._last_updated
+    
+    def get_game_versions(self) -> list[str]:
+        return self._game_versions
+    
+    def get_mod_languages(self) -> list[str]:
+        return self._mod_languages
+    
+    def get_mod_categories(self) -> list[str]:
+        return self._mod_categories
 
 mod_cache = ModCache()

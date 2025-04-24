@@ -21,7 +21,7 @@ pip install -r requirements.txt
 2. 将.env.example 重命名为 .env，并填充入数据库连接信息
 3. 端口映射到Fossic.org的数据库（或者使用本地数据库）
 ```bash
-ssh -Nf -L 3306:localhost:3306 fossic.org
+ssh -Nf -L 3306:localhost:3306 fossic
 ```
 4. 启动服务
 ```bash
