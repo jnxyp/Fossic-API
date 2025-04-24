@@ -23,26 +23,26 @@ class ModDAO(BaseDAO):
         "modID": "mod_id",
         "modReleaseVersion": "mod_version",
         "modShortDes": "mod_short_description",
+        "modType": "mod_category",
     }
 
     def get_game_versions(self) -> list[str]:
         game_versions = ForumTypeOption.get_game_versions(self.session)
         return list(game_versions.values())
 
-    def get_mod_languages(self) -> list[str]:
-        mod_languages = ForumTypeOption.get_mod_languages(self.session)
-        return list(mod_languages.values())
+    def get_mod_languages(self) -> dict[str, str]:
+        return ForumTypeOption.get_mod_languages(self.session)
 
-    def get_mod_categories(self) -> list[str]:
-        mod_types = ForumTypeOption.get_mod_types(self.session)
-        return list(mod_types.values())
+    def get_mod_categories(self) -> dict[str, str]:
+        return ForumTypeOption.get_mod_types(self.session)
+    
+    def get_mod_dependencies(self) -> dict[str, str]:
+        return ForumTypeOption.get_mod_dependencies(self.session)
 
     def get_all_mods(self) -> list[ModInfoTypes]:
         # Fetch option values from the database
         game_versions = ForumTypeOption.get_game_versions(self.session)
-        mod_languages = ForumTypeOption.get_mod_languages(self.session)
         mod_dependencies = ForumTypeOption.get_mod_dependencies(self.session)
-        mod_types = ForumTypeOption.get_mod_types(self.session)
         mod_safe_rm = ForumTypeOption.get_mod_safe_rm(self.session)
 
         statement = (select(ForumTypeOption, ForumTypeOptionVar, ForumThread)
@@ -156,13 +156,8 @@ class ModDAO(BaseDAO):
                 mod_info[tid]["mod_game_versions"] |= versions
                 continue
             if identifier == "modLanguage":
-                # 如果没有值，默认是3（其它）
-                mod_info[tid]["mod_language"] = mod_languages[value or "3"]
-                continue
-            if identifier == "modType":
-                if value == "5":  # 如果是5（原内容类mod），则需要将其转换为2（内容类mod）
-                    value = "2"
-                mod_info[tid]["mod_category"] = mod_types[value]
+                # 如果没有值，默认是 other
+                mod_info[tid]["mod_language"] = value or "other"
                 continue
             if identifier == "modVersion":
                 mod_info[tid]["mod_game_version"] = game_versions[value]

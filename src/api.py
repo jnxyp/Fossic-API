@@ -1,4 +1,3 @@
-from typing import List
 from fastapi import APIRouter
 from fastapi_cache.decorator import cache
 
@@ -8,24 +7,24 @@ from models import ModInfoTypes
 
 router = APIRouter()
 
-@router.get("/mods", response_model=List[ModInfoTypes])
+@router.get("/mods", response_model=list[ModInfoTypes])
 @cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_all_mods(include_modding:bool=False) -> List[ModInfoTypes]:
+async def get_all_mods(include_modding:bool=False) -> list[ModInfoTypes]:
     if not include_modding:
         return mod_cache.get_all_mods_no_modding()
     return mod_cache.get_all_mods()
 
-@router.get("/meta/game_versions", response_model=List[str])
+@router.get("/meta/game_versions", response_model=list[str])
 @cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_game_versions() -> List[str]:
+async def get_game_versions() -> list[str]:
     return mod_cache.get_game_versions()
 
-@router.get("/meta/mod_languages", response_model=List[str])
+@router.get("/meta/mod_languages", response_model=dict[str, str])
 @cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_mod_languages() -> List[str]:
+async def get_mod_languages() -> dict[str, str]:
     return mod_cache.get_mod_languages()
 
-@router.get("/meta/mod_categories", response_model=List[str])
+@router.get("/meta/mod_categories", response_model=dict[str, str])
 @cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_mod_categories() -> List[str]:
+async def get_mod_categories() -> dict[str, str]:
     return mod_cache.get_mod_categories()

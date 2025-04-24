@@ -15,8 +15,9 @@ class ModCache:
     def __init__(self):
         self._mods: list[ModInfoTypes] = []
         self._game_versions: list[str] = []
-        self._mod_languages: list[str] = []
-        self._mod_categories: list[str] = []
+        self._mod_languages: dict[str,str] = {}
+        self._mod_categories: dict[str,str] = {}
+        self._mod_dependencies: dict[str,str] = {}
         self._last_updated = -1
         
     def refresh(self, session:Session | None = None) -> bool:
@@ -26,9 +27,10 @@ class ModCache:
             self._game_versions = mod_dao.get_game_versions()
             self._mod_languages = mod_dao.get_mod_languages()
             self._mod_categories = mod_dao.get_mod_categories()
+            self._mod_dependencies = mod_dao.get_mod_dependencies()
             self._mods = mod_dao.get_all_mods()
         except Exception as e:
-            logger.error(f"刷新 ModCache 失败: {e}")
+            logger.error(f"刷新 ModCache 失败: {e}", exc_info=True)
             return False
         logger.info(f"ModCache 刷新完成, 共 {len(self._mods)} 个有效 mod")
         self._last_updated = int(time.time())
@@ -46,10 +48,10 @@ class ModCache:
     def get_game_versions(self) -> list[str]:
         return self._game_versions
     
-    def get_mod_languages(self) -> list[str]:
+    def get_mod_languages(self) -> dict[str,str]:
         return self._mod_languages
     
-    def get_mod_categories(self) -> list[str]:
+    def get_mod_categories(self) -> dict[str,str]:
         return self._mod_categories
 
 mod_cache = ModCache()

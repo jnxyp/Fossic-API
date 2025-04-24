@@ -4,8 +4,10 @@ from fastapi import FastAPI
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from api import router
 from fastapi_cache import FastAPICache
+from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
 
 from cache import mod_cache
 from config import CONFIG
@@ -31,6 +33,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router, prefix="/api", tags=["api"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 @app.get("/")
 def read_root():
