@@ -11,6 +11,7 @@ PYTHON_BIN="python3.11"
 SERVICE_FILE="$SCRIPT_DIR/$SERVICE_NAME.service"
 SYSTEMD_TARGET="/etc/systemd/system/$SERVICE_NAME.service"
 APACHE_CONF_FILE="$SCRIPT_DIR/$SERVICE_NAME.conf"
+APACHE_CONF_EXAMPLE="$SCRIPT_DIR/$SERVICE_NAME.conf.example"
 APACHE_SITES_AVAILABLE="/etc/apache2/sites-available"
 APACHE_SITES_ENABLED="/etc/apache2/sites-enabled"
 APACHE_TARGET="$APACHE_SITES_AVAILABLE/$SERVICE_NAME.conf"
@@ -68,7 +69,15 @@ if command -v apache2 >/dev/null 2>&1; then
   # 启用反向代理模块
   a2enmod proxy proxy_http
 
-  # 复制或链接虚拟主机配置文件
+  # 幂等复制 Apache 配置文件
+  if [ -f "$APACHE_CONF_FILE" ]; then
+    echo "ℹ️ 发现已有 Apache 配置文件，跳过复制：$APACHE_CONF_FILE"
+  else
+    echo "📄 复制 Apache 配置文件..."
+    cp "$APACHE_CONF_EXAMPLE" "$APACHE_CONF_FILE"
+  fi
+
+  # 创建软链接
   rm -f "$APACHE_TARGET"
   ln -s "$APACHE_CONF_FILE" "$APACHE_TARGET"
 
