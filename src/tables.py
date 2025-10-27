@@ -90,7 +90,8 @@ class ForumThread(SQLModel, table=True):
 
 if __name__ == "__main__":
     from db import get_session_sync
-    session = get_session_sync()
-    # test ForumTypeOption
-    options = ForumTypeOption.get_mod_types(session)
-    print(options)
+    # 使用上下文管理器确保 session 被正确关闭
+    with get_session_sync() as session:
+        # test ForumTypeOption
+        options = ForumTypeOption.get_mod_types(session)
+        print(options)

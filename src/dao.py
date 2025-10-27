@@ -201,6 +201,7 @@ class ModDAO(BaseDAO):
 if __name__ == "__main__":
     from db import get_session
 
+    # 使用上下文管理器确保 session 被正确关闭
     with get_session_sync() as session:
         dao = ModDAO(session)
         mods = dao.get_all_mods()

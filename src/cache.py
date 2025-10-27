@@ -23,12 +23,23 @@ class ModCache:
     def refresh(self, session:Session | None = None) -> bool:
         logger.info("开始刷新 ModCache")
         try:
-            mod_dao = ModDAO(session or get_session_sync())
-            self._game_versions = mod_dao.get_game_versions()
-            self._mod_languages = mod_dao.get_mod_languages()
-            self._mod_categories = mod_dao.get_mod_categories()
-            self._mod_dependencies = mod_dao.get_mod_dependencies()
-            self._mods = mod_dao.get_all_mods()
+            if session:
+                # 使用传入的 session
+                mod_dao = ModDAO(session)
+                self._game_versions = mod_dao.get_game_versions()
+                self._mod_languages = mod_dao.get_mod_languages()
+                self._mod_categories = mod_dao.get_mod_categories()
+                self._mod_dependencies = mod_dao.get_mod_dependencies()
+                self._mods = mod_dao.get_all_mods()
+            else:
+                # 使用上下文管理器确保 session 被正确关闭
+                with get_session_sync() as session:
+                    mod_dao = ModDAO(session)
+                    self._game_versions = mod_dao.get_game_versions()
+                    self._mod_languages = mod_dao.get_mod_languages()
+                    self._mod_categories = mod_dao.get_mod_categories()
+                    self._mod_dependencies = mod_dao.get_mod_dependencies()
+                    self._mods = mod_dao.get_all_mods()
         except Exception as e:
             logger.error(f"刷新 ModCache 失败: {e}", exc_info=True)
             return False
