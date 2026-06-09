@@ -3,6 +3,7 @@ import datetime
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from api import router
 from fastapi_cache import FastAPICache
@@ -41,6 +42,10 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(lifespan=lifespan)
 app.include_router(router, tags=["api"])
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+@app.get("/", include_in_schema=False)
+def read_root() -> RedirectResponse:
+    return RedirectResponse(url="/status")
 
 @app.get("/status")
 def get_status():
