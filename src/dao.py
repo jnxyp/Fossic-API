@@ -159,9 +159,6 @@ class ModDAO(BaseDAO):
                 # 如果没有值，默认是 other
                 mod_info[tid]["mod_language"] = value or "other"
                 continue
-            if identifier == "modVersion":
-                mod_info[tid]["mod_game_version"] = game_versions[value]
-                continue
             if identifier == "modSafeRm":
                 label = mod_safe_rm.get(value)
                 if label is None:
@@ -189,6 +186,10 @@ class ModDAO(BaseDAO):
             if "mod_id" not in info or not info["mod_id"]:
                 logger.warning(f"帖子 {tid} 缺少 mod_id，跳过该帖子")
                 continue
+            for field in ("mod_author_names", "mod_translator_names", "mod_game_versions",
+                          "mod_dependency_names", "mod_conflict_names"):
+                if field in info and isinstance(info[field], set):
+                    info[field] = sorted(info[field])
             mod_info_type = info["mod_info_type"]
             if mod_info_type == ModInfoType.ORIGINAL:
                 mod_info_objects.append(ModInfoOriginal(**info))
