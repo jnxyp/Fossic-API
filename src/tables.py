@@ -3,6 +3,9 @@ from typing import Dict
 from sqlalchemy import PrimaryKeyConstraint
 from sqlmodel import Field, SQLModel, Session, col, select
 from phpserialize import loads
+import log
+
+logger = log.get_logger(__name__)
 
 class ForumTypeOption(SQLModel, table=True):
     __tablename__ = 'pre_forum_typeoption'  # type: ignore
@@ -32,7 +35,10 @@ class ForumTypeOption(SQLModel, table=True):
             if isinstance(obj, dict):
                 choices_str = obj['choices'.encode('utf-8')].decode('utf-8')
                 for row in choices_str.split('\r\n'):
-                    key, value = row.split('=')
+                    parts = row.split('=')
+                    if len(parts) > 2:
+                        logger.warning(f"选项行含多个 '='，取首段为 key: {row!r}")
+                    key, value = parts[0], parts[1] if len(parts) > 1 else ''
                     choices[key.strip()] = value.strip()
             else:
                 raise ValueError(f"Invalid rules format")

@@ -50,9 +50,9 @@ class ModInfo(SQLModel):
     mod_info_type: ModInfoType
     mod_id: str
     mod_name_cn: str
-    mod_author_names: List[str]
+    mod_author_names: List[str] = []
     mod_category: str
-    mod_game_versions: List[str]
+    mod_game_versions: List[str] = []
     mod_version: str  # db field name: modReleaseVersion
     mod_safe_remove: bool
     mod_dependency_names: List[str] = []
@@ -73,7 +73,7 @@ class ModInfoOriginal(ModInfo):
 class ModInfoTranslated(ModInfo):
     mod_info_type: ModInfoType = ModInfoType.TRANSLATED
     mod_name_en: str
-    mod_translator_names: List[str]
+    mod_translator_names: List[str] = []
 
 
 class ModInfoReposted(ModInfo):

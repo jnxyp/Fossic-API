@@ -163,7 +163,11 @@ class ModDAO(BaseDAO):
                 mod_info[tid]["mod_game_version"] = game_versions[value]
                 continue
             if identifier == "modSafeRm":
-                mod_info[tid]["mod_safe_remove"] = mod_safe_rm[value] == "是"
+                label = mod_safe_rm.get(value)
+                if label is None:
+                    logger.warning(f"帖子 {tid} modSafeRm 值 {value!r} 不在选项表中，跳过该字段")
+                    continue
+                mod_info[tid]["mod_safe_remove"] = label == "是"
                 continue
             if identifier == "modPublishSite":
                 mod_info[tid]["mod_publish_urls"].append(value)
