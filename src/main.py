@@ -50,10 +50,14 @@ def read_root() -> RedirectResponse:
 @app.get("/status")
 def get_status():
     last_updated = mod_cache.get_update_time()
+    now = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
+    stale_threshold = CONFIG["cache"]["mod_cache_time"] * 2
+    cache_status = "ok" if last_updated >= 0 and (now - last_updated) <= stale_threshold else "expired"
     return {
         "status": "ok",
         "docs_url": f"{CONFIG['fossic']['api_url']}/docs",
         "cache": {
+            "status": cache_status,
             "mod_count": len(mod_cache.get_all_mods()),
             "last_updated": last_updated,
             "last_updated_iso": datetime.datetime.fromtimestamp(last_updated, tz=datetime.timezone.utc).isoformat() if last_updated >= 0 else None,
