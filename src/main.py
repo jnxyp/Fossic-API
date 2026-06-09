@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
@@ -38,9 +39,18 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     scheduler.shutdown(wait=False)
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(router, prefix="/api", tags=["api"])
+app.include_router(router, tags=["api"])
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-@app.get("/")
-def read_root():
-    return {"message": f"欢迎来到 Fossic API！请访问 {CONFIG['fossic']['api_url']}/docs 查看 API 文档。API路径为 {CONFIG['fossic']['api_url']}/api/"}
+@app.get("/status")
+def get_status():
+    last_updated = mod_cache.get_update_time()
+    return {
+        "status": "ok",
+        "docs_url": f"{CONFIG['fossic']['api_url']}/docs",
+        "cache": {
+            "mod_count": len(mod_cache.get_all_mods()),
+            "last_updated": last_updated,
+            "last_updated_iso": datetime.datetime.fromtimestamp(last_updated, tz=datetime.timezone.utc).isoformat() if last_updated >= 0 else None,
+        },
+    }
