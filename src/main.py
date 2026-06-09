@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from fastapi import FastAPI
@@ -15,16 +16,21 @@ import log
 
 logger = log.setup_custom_logger(__name__)
 
+_loop: asyncio.AbstractEventLoop | None = None
+
 def refresh_cache():
     logger.info("触发刷新 ModCache")
-    mod_cache.refresh()
+    if mod_cache.refresh() and _loop is not None:
+        asyncio.run_coroutine_threadsafe(FastAPICache.clear(), _loop)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    global _loop
+    _loop = asyncio.get_event_loop()
     # fastapi cache
     FastAPICache.init(InMemoryBackend(), prefix="cache")
-    # mod cache
-    refresh_cache()
+    # mod cache — run in thread pool to avoid blocking the event loop
+    await asyncio.get_event_loop().run_in_executor(None, refresh_cache)
     scheduler = BackgroundScheduler()
     scheduler.add_job(refresh_cache, trigger=IntervalTrigger(seconds=CONFIG["cache"]["mod_cache_time"]), id="refresh_cache", replace_existing=True, max_instances=1, coalesce=True)
     scheduler.start()
