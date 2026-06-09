@@ -1,0 +1,12 @@
+{
+  "include": ["src"],
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "strict",
+  "reportMissingModuleSource": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownParameterType": false
+}

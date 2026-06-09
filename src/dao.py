@@ -179,10 +179,13 @@ class ModDAO(BaseDAO):
 
         mod_info_objects = []
         for tid, info in mod_info.items():
+            if "mod_info_type" not in info:
+                logger.warning(f"帖子 {tid} 缺少 mod_info_type，跳过该帖子")
+                continue
+            if "mod_id" not in info or not info["mod_id"]:
+                logger.warning(f"帖子 {tid} 缺少 mod_id，跳过该帖子")
+                continue
             mod_info_type = info["mod_info_type"]
-            if not "mod_id" in info or not info["mod_id"]:
-                logger.warning(f"帖子 {tid} 中没有 mod_id，跳过该帖子")
-                continue  # 跳过没有 mod_id 的老帖
             if mod_info_type == ModInfoType.ORIGINAL:
                 mod_info_objects.append(ModInfoOriginal(**info))
             elif mod_info_type == ModInfoType.TRANSLATED:
