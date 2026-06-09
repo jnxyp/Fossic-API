@@ -1,6 +1,7 @@
 import threading
 import time
 from typing import TypedDict
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from config import CONFIG
@@ -43,15 +44,26 @@ class ModCache:
 
     def refresh(self, session: Session | None = None) -> bool:
         logger.info("开始刷新 ModCache")
-        try:
-            if session:
-                data = self._fetch(session)
-            else:
-                with get_session_sync() as s:
-                    data = self._fetch(s)
-        except Exception as e:
-            logger.error(f"刷新 ModCache 失败: {e}", exc_info=True)
-            return False
+        max_retries = 3
+        retry_interval = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                if session:
+                    data = self._fetch(session)
+                else:
+                    with get_session_sync() as s:
+                        data = self._fetch(s)
+                break
+            except SQLAlchemyError as e:
+                if attempt < max_retries:
+                    logger.warning(f"刷新 ModCache 失败 (第 {attempt}/{max_retries} 次), {retry_interval}s 后重试: {e}")
+                    time.sleep(retry_interval)
+                else:
+                    logger.error(f"刷新 ModCache 失败，已重试 {max_retries} 次，放弃: {e}", exc_info=True)
+                    return False
+            except Exception as e:
+                logger.error(f"刷新 ModCache 失败: {e}", exc_info=True)
+                return False
 
         with self._lock:
             self._game_versions = data["game_versions"]
