@@ -5,6 +5,7 @@
   "pythonVersion": "3.11",
   "typeCheckingMode": "strict",
   "reportMissingModuleSource": false,
+  "reportMissingTypeStubs": false,
   "reportUnknownVariableType": false,
   "reportUnknownMemberType": false,
   "reportUnknownArgumentType": false,

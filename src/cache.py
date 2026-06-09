@@ -1,5 +1,6 @@
 import threading
 import time
+from typing import TypedDict
 from sqlmodel import Session
 
 from config import CONFIG
@@ -7,6 +8,14 @@ from dao import ModDAO
 from db import get_session_sync
 import log
 from models import ModInfoTypes
+
+
+class _FetchResult(TypedDict):
+    game_versions: list[str]
+    mod_languages: dict[str, str]
+    mod_categories: dict[str, str]
+    mod_dependencies: dict[str, str]
+    mods: list[ModInfoTypes]
 
 logger = log.get_logger(__name__)
 
@@ -22,7 +31,7 @@ class ModCache:
         self._mod_dependencies: dict[str,str] = {}
         self._last_updated = -1
 
-    def _fetch(self, session: Session) -> dict:
+    def _fetch(self, session: Session) -> _FetchResult:
         mod_dao = ModDAO(session)
         return {
             "game_versions": mod_dao.get_game_versions(),

@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from api import router
@@ -24,7 +24,7 @@ def refresh_cache():
         asyncio.run_coroutine_threadsafe(FastAPICache.clear(), _loop)
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
     global _loop
     _loop = asyncio.get_event_loop()
     # fastapi cache

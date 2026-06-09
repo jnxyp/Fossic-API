@@ -1,4 +1,3 @@
-from functools import cache
 from typing import Dict
 from sqlalchemy import PrimaryKeyConstraint
 from sqlmodel import Field, SQLModel, Session, col, select

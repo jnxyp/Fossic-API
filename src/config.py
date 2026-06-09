@@ -1,8 +1,37 @@
 from os import getenv
+from typing import TypedDict
 from dotenv import load_dotenv
 load_dotenv()
 
-CONFIG = {
+
+class DbConfig(TypedDict):
+    host: str | None
+    port: str | None
+    user: str | None
+    password: str | None
+    db: str | None
+
+
+class FossicConfig(TypedDict):
+    url: str
+    api_url: str
+    mod_fids: set[int]
+    modding_fids: set[int]
+
+
+class CacheConfig(TypedDict):
+    api_cache_time: int
+    mod_cache_time: int
+
+
+class AppConfig(TypedDict):
+    db: DbConfig
+    debug: bool
+    fossic: FossicConfig
+    cache: CacheConfig
+
+
+CONFIG: AppConfig = {
     "db": {
         "host": getenv("DB_HOST"),
         "port": getenv("DB_PORT"),
@@ -14,7 +43,7 @@ CONFIG = {
     "fossic": {
         "url": "https://www.fossic.org",
         "api_url": "https://api.fossic.org",
-        "mod_fids": {46,60,78},
+        "mod_fids": {46, 60, 78},
         "modding_fids": {71},
     },
     "cache": {

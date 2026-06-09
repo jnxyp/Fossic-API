@@ -59,7 +59,6 @@ class ModDAO(BaseDAO):
         mod_info = defaultdict(dict)  # {tid: dict(ModInfo)}
 
         for option, option_var, thread in results:
-            title = option.title
             identifier = option.identifier
             value = option_var.value
             tid = option_var.tid
@@ -200,14 +199,13 @@ class ModDAO(BaseDAO):
             else:
                 raise ValueError(f"Unknown mod info type: {mod_info_type}")
 
-        def sort_key(mod): return (mod.mod_id, mod.thread_meta.tid)
+        def sort_key(mod: ModInfoTypes) -> tuple[str, int]: return (mod.mod_id, mod.thread_meta.tid)
         mod_info_objects.sort(key=sort_key)
 
         return mod_info_objects
 
 
 if __name__ == "__main__":
-    from db import get_session
 
     # 使用上下文管理器确保 session 被正确关闭
     with get_session_sync() as session:
