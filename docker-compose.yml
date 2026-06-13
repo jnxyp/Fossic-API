@@ -8,5 +8,11 @@ services:
       - ./src:/app
     env_file:
       - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - forum-db
+
+networks:
+  forum-db:
+    external: true
+    name: fossicdiscuz_fossic-forum
