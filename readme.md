@@ -18,13 +18,12 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 ```
-2. 将.env.example 重命名为 .env，并填充入数据库连接信息
-3. 端口映射到Fossic.org的数据库（或者使用本地数据库）
+2. 复制 `.env.sample` 为 `.env`，填写本地或只读数据库连接信息。不要覆盖已有 `.env`。
+3. 如需连接服务器，先读运维仓库 `cn-hk-fossic.md`；只使用 SSH 别名 `cn-hk-fossic`。MySQL 无宿主机端口映射，旧的 `localhost:3306` 转发方式已不适用。不要为本地测试开放线上端口。
+4. 从仓库根目录启动服务
 ```bash
-ssh -Nf -L 3306:localhost:3306 fossic
-```
-4. 启动服务
-```bash
-uvicorn src/main:app --reload --host
+python -X utf8 -m uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000
 ```
 5. 访问 http://localhost:8000/ 检查服务状态，http://localhost:8000/docs 查看API文档
+
+Windows UTF-8 环境与离线测试步骤、`GET /mods` 发布元数据定义见 [发布元数据与本地验证](docs/mod-releases.md)。

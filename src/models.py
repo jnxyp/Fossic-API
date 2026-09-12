@@ -46,6 +46,14 @@ class AdminNotes(SQLModel):
     mod_index_comment: str | None = None
     thread_comment: str | None = None  # db field name: adminThreadComment
 
+class ModRelease(SQLModel):
+    attachment_id: int
+    game_version_id: str
+    game_version: str
+    mod_version: str
+    display_name: str | None = None
+
+
 class ModInfo(SQLModel):
     mod_info_type: ModInfoType
     mod_id: str
@@ -54,6 +62,8 @@ class ModInfo(SQLModel):
     mod_category: str
     mod_game_versions: List[str] = []
     mod_version: str  # db field name: modReleaseVersion
+    mod_releases: list[ModRelease] | None = None
+    mod_allow_direct_download: bool = False
     mod_safe_remove: bool
     mod_dependency_names: List[str] = []
     mod_conflict_names: List[str] = []

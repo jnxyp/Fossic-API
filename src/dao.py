@@ -6,6 +6,7 @@ from config import CONFIG
 from db import get_session_sync
 import log
 from models import ModInfoOriginal, ModInfoReposted, ModInfoTranslated, ModInfoType, ModInfoTypes, ThreadFeaturedLevel
+from mod_releases import parse_mod_releases
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
 from utils import date_string_to_timestamp, get_thread_url
 
@@ -57,6 +58,7 @@ class ModDAO(BaseDAO):
         results = self.session.exec(statement).all()
 
         mod_info = defaultdict(dict)  # {tid: dict(ModInfo)}
+        direct_download_choices = {}
 
         for option, option_var, thread in results:
             identifier = option.identifier
@@ -92,6 +94,20 @@ class ModDAO(BaseDAO):
 
             if identifier in self.mod_info_identifier_mapping:
                 mod_info[tid][self.mod_info_identifier_mapping[identifier]] = value
+                continue
+
+            if identifier == "modReleaseFilesMapping":
+                mod_info[tid]["mod_releases"] = parse_mod_releases(value, game_versions, tid)
+                continue
+            if identifier == "modAllowDirectDownload":
+                if option.optionid not in direct_download_choices:
+                    try:
+                        direct_download_choices[option.optionid] = ForumTypeOption.extract_choices_from_rules(option.rules)
+                    except (ValueError, TypeError, KeyError, AttributeError):
+                        logger.warning("modAllowDirectDownload 选项 %s 的 choices 无法解析，默认不允许直链", option.optionid)
+                        direct_download_choices[option.optionid] = {}
+                choices = direct_download_choices[option.optionid]
+                mod_info[tid]["mod_allow_direct_download"] = choices.get(value) == "是"
                 continue
 
             if identifier == "modName_cn":
