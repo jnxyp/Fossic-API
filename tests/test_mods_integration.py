@@ -104,6 +104,7 @@ def test_route_both_caches_and_refresh(session, monkeypatch):
             assert first.status_code == 200
             assert first.headers['x-fastapi-cache'] == 'MISS'
             data = first.json()
+            assert client.get('/mods').json() == data
             assert [m['thread_meta']['fid'] for m in data] == [46, 60, 78]
             assert data[0]['mod_releases'][0]['game_version'] == '0.98'
             assert data[0]['mod_releases'][0]['download_count'] is None
@@ -141,6 +142,27 @@ def test_route_both_caches_and_refresh(session, monkeypatch):
 
 
 ORIGINAL_REFRESH = main.refresh_cache
+
+
+@pytest.mark.parametrize('translators', ['', '译者甲,译者乙'])
+def test_translators_survive_response_cache(session, monkeypatch, translators):
+    session.add(ForumTypeOption(optionid=999, identifier='modTranslator', title='译者', type='text', rules=''))
+    session.add(ForumTypeOptionVar(sortid=3, tid=3, fid=78, optionid=999, expiration=0, value=translators))
+    session.commit()
+    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
+    FastAPICache.reset()
+    try:
+        with TestClient(main.app) as client:
+            client.portal.call(FastAPICache.clear)
+            first = client.get('/mods')
+            second = client.get('/mods')
+            assert first.headers['x-fastapi-cache'] == 'MISS'
+            assert second.headers['x-fastapi-cache'] == 'HIT'
+            assert first.json() == second.json()
+            translated = next(m for m in second.json() if m['thread_meta']['tid'] == 3)
+            assert translated['mod_translator_names'] == (sorted(translators.split(',')) if translators else [])
+    finally:
+        FastAPICache.reset()
 
 
 def test_download_counts_skip_invalid_without_losing_valid(session):

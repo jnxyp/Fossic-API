@@ -1,9 +1,9 @@
 from enum import Enum
-from typing import List
+from typing import List, Literal
 from sqlmodel import SQLModel
 
 
-class ModInfoType(Enum):
+class ModInfoType(str, Enum):
     ORIGINAL = 'original'
     TRANSLATED = 'translated'
     REPOSTED = 'reposted'
@@ -79,18 +79,18 @@ class ModInfo(SQLModel):
     thread_meta: ThreadMeta
 
 class ModInfoOriginal(ModInfo):
-    mod_info_type: ModInfoType = ModInfoType.ORIGINAL
+    mod_info_type: Literal[ModInfoType.ORIGINAL] = ModInfoType.ORIGINAL
     mod_name_en: str | None = None
 
 
 class ModInfoTranslated(ModInfo):
-    mod_info_type: ModInfoType = ModInfoType.TRANSLATED
+    mod_info_type: Literal[ModInfoType.TRANSLATED] = ModInfoType.TRANSLATED
     mod_name_en: str
     mod_translator_names: List[str] = []
 
 
 class ModInfoReposted(ModInfo):
-    mod_info_type: ModInfoType = ModInfoType.REPOSTED
+    mod_info_type: Literal[ModInfoType.REPOSTED] = ModInfoType.REPOSTED
     mod_name_en: str
 
 ModInfoTypes = ModInfoOriginal | ModInfoTranslated | ModInfoReposted
