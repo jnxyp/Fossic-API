@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import PrimaryKeyConstraint
+from sqlalchemy import PrimaryKeyConstraint, Table, Column, Integer, String
 from sqlmodel import Field, SQLModel, Session, col, select
 from phpserialize import loads
 import log
@@ -100,6 +100,16 @@ class ForumAttachment(SQLModel, table=True):
     aid: int = Field(primary_key=True)
     tid: int
     downloads: int
+    tableid: int = 0
+
+
+# 表名只来自固定枚举，不使用请求或数据库字符串拼接 SQL。
+ATTACHMENT_DETAILS = {
+    shard: Table(f'pre_forum_attachment_{shard}', SQLModel.metadata,
+                 Column('aid', Integer, primary_key=True), Column('tid', Integer),
+                 Column('filename', String), Column('filesize', Integer), Column('isimage', Integer))
+    for shard in range(10)
+}
 
 
 if __name__ == "__main__":

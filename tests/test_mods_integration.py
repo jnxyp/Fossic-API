@@ -12,7 +12,7 @@ import main
 from cache import mod_cache
 from dao import ModDAO
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
-from tables import ForumAttachment
+from tables import ForumAttachment, ATTACHMENT_DETAILS
 from models import ModRelease
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
@@ -181,6 +181,71 @@ def test_download_counts_skip_invalid_without_losing_valid(session):
     session.delete(session.get(ForumAttachment, 123))
     session.commit()
     assert [r.download_count for r in ModDAO(session).get_all_mods()[0].mod_releases] == [None, 0, None, None, None, None]
+
+
+def test_download_file_details_and_author_switch(session):
+    mod = ModDAO(session).get_all_mods()[0]
+    mod.mod_releases = [ModRelease(attachment_id=aid, game_version_id='v', game_version='0.98', mod_version='1')
+                        for aid in range(123, 130)]
+    session.add_all([ForumAttachment(aid=aid, tid=1 if aid != 128 else 9, downloads=0, tableid=2)
+                     for aid in range(123, 129)])
+    session.execute(ATTACHMENT_DETAILS[2].insert(), [
+        dict(aid=123, tid=1, filename='测试.zip', filesize=1024, isimage=0),
+        dict(aid=125, tid=9, filename='跨帖.zip', filesize=1, isimage=0),
+        dict(aid=126, tid=1, filename='图片.png', filesize=1, isimage=1),
+        dict(aid=127, tid=1, filename='异常.zip', filesize=-1, isimage=0),
+        dict(aid=128, tid=9, filename='其他帖子.zip', filesize=1, isimage=0),
+    ])
+    session.commit()
+    ModDAO(session).populate_download_counts([mod])
+    release = mod.mod_releases[0]
+    assert (release.file_name, release.file_size, release.download_count) == ('测试.zip', 1024, 0)
+    assert release.download_url == 'https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid=123'
+    assert all(r.download_url is None and r.file_name is None for r in mod.mod_releases[1:])
+    mod.mod_allow_direct_download = False
+    ModDAO(session).populate_download_counts([mod])
+    assert release.download_url is None and release.file_name == '测试.zip'
+    session.execute(ATTACHMENT_DETAILS[2].delete())
+    session.commit()
+    ModDAO(session).populate_download_counts([mod])
+    assert release.file_name is None and release.file_size is None
+
+
+def test_file_detail_queries_batch_actual_shards(session):
+    mod = ModDAO(session).get_all_mods()[0]
+    mod.mod_releases = [ModRelease(attachment_id=aid, game_version_id='v', game_version='0.98', mod_version='1')
+                        for aid in range(1, 503)]
+    session.add_all([ForumAttachment(aid=aid, tid=1, downloads=0, tableid=3 if aid <= 501 else 9)
+                     for aid in range(1, 503)])
+    session.commit()
+    queries = []
+    def record(conn, cursor, statement, parameters, context, executemany):
+        queries.append((statement, parameters))
+    event.listen(session.bind, 'before_cursor_execute', record)
+    try:
+        ModDAO(session).populate_download_counts([mod])
+        assert [len(params) for _, params in queries] == [500, 2, 500, 1, 1]
+        assert 'pre_forum_attachment_3' in queries[2][0]
+        assert 'pre_forum_attachment_9' in queries[4][0]
+    finally:
+        event.remove(session.bind, 'before_cursor_execute', record)
+
+
+def test_file_metadata_survives_response_cache(session, monkeypatch):
+    session.add(ForumAttachment(aid=123, tid=1, downloads=42, tableid=2))
+    session.execute(ATTACHMENT_DETAILS[2].insert(), dict(aid=123, tid=1, filename='缓存.zip', filesize=0, isimage=0))
+    session.commit()
+    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
+    FastAPICache.reset()
+    try:
+        with TestClient(main.app) as client:
+            client.portal.call(FastAPICache.clear)
+            for _ in range(2):
+                release = client.get('/mods').json()[0]['mod_releases'][0]
+                assert release['file_name'] == '缓存.zip' and release['file_size'] == 0
+                assert release['download_url'].endswith('action=moddownload&aid=123')
+    finally:
+        FastAPICache.reset()
 
 
 def test_attachment_queries_are_batched_and_deduplicated(session):

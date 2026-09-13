@@ -55,6 +55,9 @@ class ModRelease(SQLModel):
     mod_version: str
     display_name: str | None = None
     download_count: int | None = None  # 无有效的本帖附件记录时为 null
+    file_name: str | None = None
+    file_size: int | None = None
+    download_url: str | None = None  # 稳定论坛入口，不含签名或存储地址
 
 
 class ModInfo(SQLModel):

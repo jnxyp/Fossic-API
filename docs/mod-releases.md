@@ -1,5 +1,11 @@
 # Mod 发布元数据
 
+## 行内下载扩展（本地实施，尚未部署）
+
+Release 补充可空 `file_name`、`file_size`（字节）、`download_url`。缓存刷新时根据附件索引 tableid，按实际分表分组批查明细，每批最多 500 个；不逐项查询。缺失或跨帖明细只影响对应文件。有效非图片文件且作者允许直下载时，URL 为 `https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid=<ID>`；其他情况为 null。它是入口而非下载权限承诺；入口即时重查，原论坛流程执行最终权限及计数。不返回签名或 CDN 地址，不探测远端对象。
+
+本地 53 项 SQLite / TestClient 测试通过。部署前需要先上线论坛入口，并核查 API 只读账号对实际附件分表的 SELECT 权限；不创建或修改生产表结构。权限不足或查询失败仍使缓存刷新失败并保留旧快照。
+
 `GET /mods` 为每个 Mod 增加 `mod_releases` 和 `mod_allow_direct_download`，其余字段含义不变。默认板块仍是 46/60/78，`include_modding=true` 额外包含 71。DAO 的 sortid、displayorder 等过滤保持原样。顶层 `mod_version` 仍来自 `modReleaseVersion`，不从发布数组推算最新版本。
 
 示例（游戏版本选项以数据库当前定义为准）：
@@ -32,7 +38,7 @@
 - 无效条目局部过滤，日志汇总帖子 ID 和过滤数量，不影响同帖有效条目或整批缓存刷新。
 - `modAllowDirectDownload` 根据该字段数据库 rules 中的 choices 解析，仅匹配标签“是”返回 true；缺失、空白、未知值、无效 choices 均为 false。2026-09-12 只读核实：optionid=42，radio，`1=是`、`2=否`；字符串 `0` 为 false。
 
-不返回下载 URL 或附件详情。`mod_allow_direct_download` 表示作者字段设置，不代替论坛授权；签名链接不在本次范围内。
+`mod_allow_direct_download` 表示作者字段设置，不代替论坛授权。行内下载扩展提供文件信息及稳定入口；签名链接仍不返回给公共 API。
 
 ModCache 和接口响应缓存默认各为 300 秒；既有后台刷新成功后清理响应缓存的流程保持不变。修改论坛字段后需等待缓存更新。
 
