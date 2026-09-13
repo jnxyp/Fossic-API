@@ -7,7 +7,7 @@ from db import get_session_sync
 import log
 from models import ModInfoOriginal, ModInfoReposted, ModInfoTranslated, ModInfoType, ModInfoTypes, ThreadFeaturedLevel
 from mod_releases import parse_mod_releases
-from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
+from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar, ForumAttachment
 from utils import date_string_to_timestamp, get_thread_url
 
 logger = log.setup_custom_logger(__name__)
@@ -73,6 +73,8 @@ class ModDAO(BaseDAO):
                     "fid": thread.fid,
                     "featured_level": ThreadFeaturedLevel.from_digest(thread.digest),
                     "recommend_weight": thread.recommends,
+                    "heats": thread.heats,
+                    "views": thread.views,
                 }
 
             # Parse AdminNotes
@@ -218,7 +220,25 @@ class ModDAO(BaseDAO):
         def sort_key(mod: ModInfoTypes) -> tuple[str, int]: return (mod.mod_id, mod.thread_meta.tid)
         mod_info_objects.sort(key=sort_key)
 
+        self.populate_download_counts(mod_info_objects)
         return mod_info_objects
+
+    def populate_download_counts(self, mods: list[ModInfoTypes]) -> None:
+        # 仅在缓存刷新时按主键批查；去重避免同一附件重复访问数据库。
+        aids = sorted({release.attachment_id for mod in mods for release in mod.mod_releases or []})
+        attachments = {}
+        for start in range(0, len(aids), 500):
+            statement = select(ForumAttachment).where(col(ForumAttachment.aid).in_(aids[start:start + 500]))
+            for attachment in self.session.exec(statement).all():
+                attachments[attachment.aid] = attachment
+        for mod in mods:
+            for release in mod.mod_releases or []:
+                attachment = attachments.get(release.attachment_id)
+                release.download_count = (
+                    attachment.downloads
+                    if attachment is not None and attachment.tid == mod.thread_meta.tid and attachment.downloads >= 0
+                    else None
+                )
 
 
 if __name__ == "__main__":

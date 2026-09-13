@@ -40,6 +40,8 @@ class ThreadMeta(SQLModel):
     fid: int # 版块ID
     featured_level: ThreadFeaturedLevel
     recommend_weight: int  # 推荐数
+    heats: int  # 累计参与热度，不含时间衰减
+    views: int  # 论坛已落库的累计浏览量
 
 
 class AdminNotes(SQLModel):
@@ -52,6 +54,7 @@ class ModRelease(SQLModel):
     game_version: str
     mod_version: str
     display_name: str | None = None
+    download_count: int | None = None  # 无有效的本帖附件记录时为 null
 
 
 class ModInfo(SQLModel):

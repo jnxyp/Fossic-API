@@ -30,7 +30,7 @@ def test_order_canonical_names_and_serialization(escaped):
     assert [r.attachment_id for r in result] == [12345, 12346, 12345]
     assert result[0].model_dump() == {
         'attachment_id': 12345, 'game_version_id': 'modVersion_098x',
-        'game_version': '0.98', 'mod_version': '1.2.0', 'display_name': '稳定版 1.2.0',
+        'game_version': '0.98', 'mod_version': '1.2.0', 'display_name': '稳定版 1.2.0', 'download_count': None,
     }
     assert result[1].display_name is None
     assert json.loads(result[0].model_dump_json()) == result[0].model_dump()

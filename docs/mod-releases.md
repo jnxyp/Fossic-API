@@ -13,7 +13,8 @@
       "game_version_id": "modVersion_098x",
       "game_version": "0.98",
       "mod_version": "1.2.0",
-      "display_name": "稳定版 1.2.0"
+      "display_name": "稳定版 1.2.0",
+      "download_count": 620
     }
   ],
   "mod_allow_direct_download": true
@@ -25,7 +26,7 @@
 - `modReleaseFilesMapping` 先解析普通 JSON；失败时按论坛保存方式解码一层 HTML 特殊字符实体再解析，避免破坏普通 JSON 字符串内的字面量实体。缺失、空白、非法 JSON 或非数组返回 `null`；解析失败记录帖子 ID，不记录原始内容。
 - 明确的 `[]` 或数组条目全部被过滤，返回 `[]`。
 - 保留作者顺序，不排序、不合并同版本附件、不去重。开关为 false 时仍返回发布元数据。
-- `aid` 接受正整数或仅含 ASCII 数字的字符串，并须处于 Discuz 无符号 INT 范围；拒绝布尔值、浮点数、零和负数。仅提供 ID，不验证附件存在性、归属或下载权限。
+- `aid` 接受正整数或仅含 ASCII 数字的字符串，并须处于 Discuz 无符号 INT 范围；拒绝布尔值、浮点数、零和负数。解析阶段仅验证格式；计数补查阶段校验附件索引记录存在及所属帖子，不验证文件实际可下载性或访问者下载权限。
 - `gameVersion` 必须是规范选项 ID 字符串，精确匹配 `ForumTypeOption.get_game_versions()`；显示文字只取规范选项。忽略保存的 `gameVersionDisplayValue`，未匹配则丢弃整个条目。
 - `modVersion` 必须是非空字符串，去除首尾空白。`modVersionDisplayName` 可缺失、为 null 或空白，统一返回 `display_name: null`；非字符串为无效条目。无法 UTF-8 序列化的条目也被过滤。
 - 无效条目局部过滤，日志汇总帖子 ID 和过滤数量，不影响同帖有效条目或整批缓存刷新。
@@ -35,7 +36,19 @@
 
 ModCache 和接口响应缓存默认各为 300 秒；既有后台刷新成功后清理响应缓存的流程保持不变。修改论坛字段后需等待缓存更新。
 
-## Windows 本地运行和测试
+## 排序统计扩展（本地实现，尚未部署）
+
+`thread_meta` 新增 `heats`（累计参与热度）和 `views`（已落库累计浏览量）；`mod_releases` 的每一项新增 `download_count: int | null`。既有字段、版本映射和默认板块过滤不变，OpenAPI 自动包含新字段。
+
+热度、浏览量直接来自已有帖子关联查询；下载量在缓存刷新时对有效 Mod 的附件 ID 去重，每批最多 500 个，按 `pre_forum_attachment.aid` 主键查 aid/tid/downloads。无 Release 时不查附件表。该表须允许 API 账号 SELECT；不创建或修改论坛数据库表。
+
+附件索引记录缺失、跨帖引用或负计数时，仅该项返回 null；其他项仍保留有效计数。数据库查询失败则使本轮刷新失败，保留旧缓存，不能伪装成所有附件缺失。计数为 0 是有效数据。文件或远端对象已丢失但数据库记录仍在的情况，无法通过该查询识别；不额外请求存储服务探测。
+
+消费端按筛选后显示的最高匹配游戏版本，选出对应 Release，以 attachment_id 去重并对非 null 计数求和；逐个跳过无效附件，不连带影响其他项。全无有效项才视为无数据并排后。本 API 不接受排序参数、不预先跨游戏版本合计，也不合并或删除原映射项。
+
+本次验证：48 项 SQLite / TestClient 测试通过，覆盖热度与浏览量、有效及零计数、删除附件、跨帖引用、负计数、重复 ID、500/501 批次边界、无映射零查询、刷新失败保留旧快照、MISS/HIT 及刷新后的统计、OpenAPI 字段。未连接生产数据库，未核实生产账号附件权限或 MySQL EXPLAIN；生产性能及权限核对仍为部署前步骤。
+
+## Windows 本地运行和测试步骤
 
 在仓库根目录执行（Python 3.11+）：
 

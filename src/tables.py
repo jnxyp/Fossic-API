@@ -91,7 +91,16 @@ class ForumThread(SQLModel, table=True):
     subject: str
     digest: int # 是否精华帖 0 否 1-3 精华1-3
     recommends: int # 推荐数
+    heats: int
+    views: int
     displayorder: int # 置顶帖 0 否 1-3 置顶1-3 删除 -1 审核 -2
+
+class ForumAttachment(SQLModel, table=True):
+    __tablename__ = 'pre_forum_attachment'  # type: ignore
+    aid: int = Field(primary_key=True)
+    tid: int
+    downloads: int
+
 
 if __name__ == "__main__":
     from db import get_session_sync
