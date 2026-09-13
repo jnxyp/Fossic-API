@@ -1,10 +1,15 @@
 # Mod 发布元数据
 
-## 行内下载扩展（本地实施，尚未部署）
+## 行内下载扩展（2026-09-13 已部署）
 
 Release 补充可空 `file_name`、`file_size`（字节）、`download_url`。缓存刷新时根据附件索引 tableid，按实际分表分组批查明细，每批最多 500 个；不逐项查询。缺失或跨帖明细只影响对应文件。有效非图片文件且作者允许直下载时，URL 为 `https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid=<ID>`；其他情况为 null。它是入口而非下载权限承诺；入口即时重查，原论坛流程执行最终权限及计数。不返回签名或 CDN 地址，不探测远端对象。
 
 本地 53 项 SQLite / TestClient 测试通过。部署前需要先上线论坛入口，并核查 API 只读账号对实际附件分表的 SELECT 权限；不创建或修改生产表结构。权限不足或查询失败仍使缓存刷新失败并保留旧快照。
+
+- 部署代码 `13bac1b`，回滚基线 `978dffd`。`cn-hk-fossic` 通过 git fast-forward 更新，仅 `docker compose restart fossic-api`；论坛入口 `5d9c9070` 已先上线。
+- 现有只读账号可 SELECT 全部 10 个附件分表，不需要新增授权。上线前新 DAO 在真实只读事务查询 697 个 Mod、297 条发布记录，用时约 1.692 秒（单次采样）。295 项有文件明细，232 项有直下载入口；缺失仍是 tid=20064/aid=80379、tid=19015/aid=77377。
+- 08:25:05 UTC 启动刷新完成，公网新字段及本地 Index 真实数据的桌面/触屏展开验证通过。与部署前快照相比，原有字段仅 25 项下载计数、5 项浏览计数增长，无意外字段变化或条目缺失。日志观察窗口无 ERROR/CRITICAL。
+- 未部署 Index 静态站点；未请求实际文件下载。API 文件信息来自数据库，无法保证远端对象存在；最终权限及下载由论坛处理。
 
 `GET /mods` 为每个 Mod 增加 `mod_releases` 和 `mod_allow_direct_download`，其余字段含义不变。默认板块仍是 46/60/78，`include_modding=true` 额外包含 71。DAO 的 sortid、displayorder 等过滤保持原样。顶层 `mod_version` 仍来自 `modReleaseVersion`，不从发布数组推算最新版本。
 
