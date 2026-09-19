@@ -250,7 +250,7 @@ class ModDAO(BaseDAO):
                     if attachment is not None and attachment.tid == mod.thread_meta.tid and attachment.downloads >= 0
                     else None
                 )
-                release.file_name = release.file_size = release.download_url = None
+                release.file_name = release.file_size = release.download_url = release.uploaded_at = None
                 detail = details.get(release.attachment_id)
                 if (attachment is None or attachment.tid != mod.thread_meta.tid or detail is None
                         or detail['tid'] != mod.thread_meta.tid or detail['isimage'] != 0
@@ -258,6 +258,8 @@ class ModDAO(BaseDAO):
                     continue
                 release.file_name = detail['filename']
                 release.file_size = detail['filesize']
+                uploaded_at = detail['dateline']
+                release.uploaded_at = uploaded_at if isinstance(uploaded_at, int) and uploaded_at > 0 else None
                 if mod.mod_allow_direct_download:
                     release.download_url = ('https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid='
                                             + str(release.attachment_id))

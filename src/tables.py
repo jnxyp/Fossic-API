@@ -107,7 +107,8 @@ class ForumAttachment(SQLModel, table=True):
 ATTACHMENT_DETAILS = {
     shard: Table(f'pre_forum_attachment_{shard}', SQLModel.metadata,
                  Column('aid', Integer, primary_key=True), Column('tid', Integer),
-                 Column('filename', String), Column('filesize', Integer), Column('isimage', Integer))
+                 Column('filename', String), Column('filesize', Integer), Column('isimage', Integer),
+                 Column('dateline', Integer))
     for shard in range(10)
 }
 
