@@ -109,3 +109,10 @@ python -X utf8 -m venv .venv
 ## 附件上传时间
 
 每项Release新增 `uploaded_at: int | null`，读取对应附件分表的dateline（Unix秒）。仅对通过既有同帖、非图片及有效文件校验的附件返回正时间戳，否则为null；不使用帖子更新时间，不新增查询或修改数据库结构。
+
+### 2026-09-19 上传时间部署
+
+- 代码 `95293b6` 已部署，回滚基线 `9414e23`；服务器fast-forward后仅restart fossic-api。10个附件分表dateline均由现有只读账号验证可读，无数据库结构、权限、依赖或Compose变更。
+- 56项本地测试通过。OpenAPI包含uploaded_at，默认446个Mod、250个Release，其中249项有效时间、1项null；连续两次HIT附件时间完全一致，抽样aid=74349与数据库dateline=1789622814一致。
+- Loki记录23:14:14 UTC刷新完成712个有效Mod，发布窗口未发现ERROR/CRITICAL；本地索引已显示真实北京时间。前端尚未提交或部署，本轮仅发布API。
+- 回滚可检出9414e23并restart fossic-api，新前端缺失字段时显示上传时间未知。
