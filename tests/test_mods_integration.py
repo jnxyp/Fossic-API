@@ -108,6 +108,7 @@ def test_route_both_caches_and_refresh(session, monkeypatch):
             assert [m['thread_meta']['fid'] for m in data] == [46, 60, 78]
             assert data[0]['mod_releases'][0]['game_version'] == '0.98'
             assert data[0]['mod_releases'][0]['download_count'] is None
+            assert all(m['thread_meta']['title'] == 'test' for m in data)
             assert data[0]['thread_meta']['heats'] == 28
             assert data[0]['thread_meta']['views'] == 1000
             assert data[1]['mod_releases'] is None

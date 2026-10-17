@@ -69,6 +69,7 @@ class ModDAO(BaseDAO):
             if "thread_meta" not in mod_info[tid]:
                 mod_info[tid]["thread_meta"] = {
                     "tid": tid,
+                    "title": thread.subject,
                     "uid": thread.authorid,
                     "fid": thread.fid,
                     "featured_level": ThreadFeaturedLevel.from_digest(thread.digest),

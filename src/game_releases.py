@@ -12,6 +12,12 @@ import log
 
 logger = log.get_logger(__name__)
 
+# Starsector 0.98a-RC8 in-game credits (title/A/oOOO.class).
+# Main creators only; special thanks and localization credits are separate.
+STARSECTOR_AUTHOR_NAMES = (
+    'Alex Mosolov', 'David Baumgart', 'Ivaylo Kovatchev', 'Stian Stark',
+)
+
 
 def parse_game_releases(value: str | None, tid: int) -> list[GameRelease] | None:
     if value is None or isinstance(value, str) and not value.strip():
@@ -70,21 +76,27 @@ class GameDAO(BaseDAO):
             .where(col(ForumThread.displayorder) >= 0)
             .where(col(ForumThread.fid).in_(CONFIG['fossic']['game_fids']))
             .where(col(ForumTypeOption.identifier).in_([
-                'gameReleaseInfoMapping', 'gameAllowDirectDownload', 'gameReleaseAuthor']))
+                'gameReleaseInfoMapping', 'gameAllowDirectDownload', 'gameReleaseAuthor',
+                'gameReleaseName', 'gameReleaseVersion']))
             .order_by(col(ForumThread.tid).desc()))
         games = {}
         for thread, option, value in self.session.exec(statement).all():
             if thread.tid not in games:
-                games[thread.tid] = GameInfo(game_title=thread.subject,
+                games[thread.tid] = GameInfo(game_author_names=list(STARSECTOR_AUTHOR_NAMES),
                     game_publish_urls=[get_thread_url(thread.tid)],
-                    thread_meta=ThreadMeta(tid=thread.tid, uid=thread.authorid, fid=thread.fid,
+                    thread_meta=ThreadMeta(title=thread.subject, tid=thread.tid, uid=thread.authorid, fid=thread.fid,
                         featured_level=ThreadFeaturedLevel.from_digest(thread.digest),
                         recommend_weight=thread.recommends, heats=thread.heats, views=thread.views))
             game = games[thread.tid]
             if option.identifier == 'gameReleaseInfoMapping':
                 game.game_releases = parse_game_releases(value.value, thread.tid)
             elif option.identifier == 'gameReleaseAuthor':
-                game.game_author_names = sorted({name.strip() for name in value.value.split(',') if name.strip()})
+                game.game_author_names = sorted(set(STARSECTOR_AUTHOR_NAMES) |
+                    {name.strip() for name in value.value.split(',') if name.strip()})
+            elif option.identifier == 'gameReleaseName':
+                game.game_release_name = value.value.strip() or None
+            elif option.identifier == 'gameReleaseVersion':
+                game.game_release_version = value.value.strip() or None
             elif option.identifier == 'gameAllowDirectDownload':
                 try:
                     choices = ForumTypeOption.extract_choices_from_rules(option.rules)

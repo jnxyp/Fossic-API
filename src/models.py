@@ -35,6 +35,7 @@ class ThreadFeaturedLevel(Enum):
             raise ValueError(f"Invalid digest value: {digest}")
 
 class ThreadMeta(SQLModel):
+    title: str
     tid: int
     uid: int
     fid: int # 版块ID
@@ -118,7 +119,8 @@ class GameRelease(SQLModel):
 
 
 class GameInfo(SQLModel):
-    game_title: str
+    game_release_name: str | None = None
+    game_release_version: str | None = None
     game_author_names: list[str] = []
     game_allow_direct_download: bool = False
     game_publish_urls: list[str]

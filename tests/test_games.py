@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 import main
 import cache
 from cache import GameCache, game_cache, mod_cache
-from game_releases import GameDAO, parse_game_releases
+from game_releases import GameDAO, parse_game_releases, STARSECTOR_AUTHOR_NAMES
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar, ForumAttachment, ATTACHMENT_DETAILS
 from test_mods_integration import session, rules
 
@@ -25,7 +25,8 @@ def games(session):
     # Deliberately use different field IDs: lookup must follow identifiers.
     for oid, identifier, definition in [(144,'gameReleaseInfoMapping',''),
             (145,'gameAllowDirectDownload',rules('allow=是\r\ndeny=否')),
-            (146,'gameReleaseAuthor','')]:
+            (146,'gameReleaseAuthor',''), (147,'gameReleaseName',''),
+            (148,'gameReleaseVersion','')]:
         session.add(ForumTypeOption(optionid=oid, identifier=identifier, title=identifier,
                                    type='text', rules=definition))
     for tid, fid, sortid, order in [(20,39,9,3),(21,39,9,-1),(22,99,9,0),(23,39,1,0)]:
@@ -34,7 +35,8 @@ def games(session):
             digest=3, recommends=5, heats=9, views=100))
         for oid, value in [(144,html.escape(json.dumps([ENTRY, {**ENTRY,'aid':901,'isFullGame':False,
                 'packageType':'self_extracting','displayName':' '}]))),
-                (145,'allow'),(146,'作者乙, 作者甲,作者乙, ' )]:
+                (145,'allow'),(146,'作者乙, 作者甲,作者乙, ' ),
+                (147,'汉化版 (测试)'),(148,'v2026.10.15-master')]:
             session.add(ForumTypeOptionVar(sortid=sortid, tid=tid, fid=fid,
                 optionid=oid, expiration=0, value=value))
     session.add_all([ForumAttachment(aid=900,tid=20,downloads=10,tableid=7),
@@ -90,8 +92,10 @@ def test_game_dao_contract_and_filters(games):
     assert len(result)==1
     game=result[0]
     assert game.thread_meta.tid==20
-    assert game.game_title=='游戏 (中文) "测试"'
-    assert game.game_author_names==['作者乙','作者甲']
+    assert game.thread_meta.title=='游戏 (中文) "测试"'
+    assert game.game_author_names==[*STARSECTOR_AUTHOR_NAMES, '作者乙','作者甲']
+    assert game.game_release_name=='汉化版 (测试)'
+    assert game.game_release_version=='v2026.10.15-master'
     assert game.game_publish_urls==['https://www.fossic.org/thread-20-1-1.html']
     assert game.game_allow_direct_download is True
     assert len(game.game_releases)==2
@@ -115,7 +119,7 @@ def test_missing_author_and_switch(games):
     for oid in [145,146]:games.delete(games.get(ForumTypeOptionVar,(9,20,39,oid)))
     games.commit()
     game=GameDAO(games).get_all_games()[0]
-    assert game.game_author_names==[] and not game.game_allow_direct_download
+    assert game.game_author_names==list(STARSECTOR_AUTHOR_NAMES) and not game.game_allow_direct_download
     assert all(r.download_url is None for r in game.game_releases)
 
 
@@ -167,6 +171,12 @@ def test_game_endpoint_caches_schema_and_invalidation(games,monkeypatch):
             assert second.headers['x-fastapi-cache']=='HIT'
             assert first.json()==second.json()
             assert len(first.json()[0]['game_releases'])==2
+            assert 'game_title' not in first.json()[0]
+            assert first.json()[0]['game_release_name']=='汉化版 (测试)'
+            assert first.json()[0]['game_release_version']=='v2026.10.15-master'
+            assert first.json()[0]['thread_meta']['title']=='游戏 (中文) "测试"'
+            mods=client.get('/mods').json()
+            assert mods and all('title' in mod['thread_meta'] for mod in mods)
             queries=[]
             def record(*args):queries.append(args)
             event.listen(games.bind,'before_cursor_execute',record)
@@ -177,6 +187,10 @@ def test_game_endpoint_caches_schema_and_invalidation(games,monkeypatch):
             assert client.get('/status').json()['game_cache']['game_count']==1
             schema=client.get('/openapi.json').json()
             assert '/games' in schema['paths']
+            assert 'title' in schema['components']['schemas']['ThreadMeta']['required']
+            props=schema['components']['schemas']['GameInfo']['properties']
+            assert 'game_title' not in props
+            assert 'game_release_name' in props and 'game_release_version' in props
             assert 'game_releases' in schema['components']['schemas']['GameInfo']['properties']
             assert schema['components']['schemas']['GameRelease']['properties']['platform']['enum']==['windows','macos','linux','universal']
             games.get(ForumTypeOptionVar,(9,20,39,145)).value='deny';games.commit()
@@ -193,3 +207,28 @@ def test_game_endpoint_caches_schema_and_invalidation(games,monkeypatch):
 def test_game_language_values(language):
     result=parse_game_releases(json.dumps([{**ENTRY,'language':language}]),20)
     assert len(result)==1 and result[0].language==language
+
+@pytest.mark.parametrize('value', ['', '  ', 'Alex Mosolov, Alex Mosolov, 远星汉化组,远星汉化组, '])
+def test_author_union(games, value):
+    games.get(ForumTypeOptionVar,(9,20,39,146)).value=value
+    games.commit()
+    expected=list(STARSECTOR_AUTHOR_NAMES)
+    if value.strip():
+        expected.append('远星汉化组')
+    assert GameDAO(games).get_all_games()[0].game_author_names==expected
+
+
+@pytest.mark.parametrize('value', [None, '', '  '])
+def test_optional_release_fields(games, value):
+    for oid in [147,148]:
+        row=games.get(ForumTypeOptionVar,(9,20,39,oid))
+        if value is None:
+            games.delete(row)
+        else:
+            row.value=value
+    games.commit()
+    game=GameDAO(games).get_all_games()[0]
+    assert game.game_release_name is None and game.game_release_version is None
+    assert game.thread_meta.title=='游戏 (中文) "测试"'
+    assert game.game_releases[0].game_version=='0.98'
+    assert game.game_releases[0].release_version=='v2026.10.15'
