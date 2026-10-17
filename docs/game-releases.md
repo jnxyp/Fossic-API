@@ -22,3 +22,11 @@
 ## 部署与回滚
 
 先部署论坛下载入口及已有字段45/46绑定，再 fast-forward API 并仅重启 `fossic-api` 服务。线上 `.env` 不覆盖。回滚 API 可恢复部署前代码；论坛分类模板和字段绑定先从本次 `data/deploy-backups/game-api-before-*.json` 核对恢复，更新 threadsorts 缓存。不得删除或覆盖用户后来填写的分类字段值。
+
+
+## 2026-10-17 UTC 上线结果
+
+- 运行代码 `a221832`，论坛入口 `ccb65c9e` 已先上线。API 03:24:48 UTC 启动刷新成功，游戏1帖/16项、Mod784项；公网 `/games` 200、MISS→HIT，OpenAPI 和 `/status.game_cache` 正常，游戏版本接口保持20项。
+- 论坛字段45/46已绑定分类9，模板核对后更新，备份为 `data/deploy-backups/game-api-before-20261017.json`。19430作者/开关未补写，16项 JSON 未变，全部 download_url=null。匿名 HTTP（明确客户端 UA）和登录 Chrome 均验证关闭开关时302回原帖。
+- Chrome 桌面及Android触屏编辑页均有原生作者/开关控件、16项正确回显；开关未自动选“是”，390px无横向溢出，未保存帖子。PHP worker 对缓存目录创建/覆盖/删除测试成功，部署文件1000:1000、备份0600。
+- Loki 上线观察窗口确认 GameCache 刷新成功，未见 API ERROR/CRITICAL。自动化104项 API 和53项论坛入口测试通过；没有开启公开帖直链或下载大型安装包，开放分支及最终权限交接由隔离回归测试验证。

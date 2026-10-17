@@ -27,3 +27,5 @@ python -X utf8 -m uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000
 5. 访问 http://localhost:8000/ 检查服务状态，http://localhost:8000/docs 查看API文档
 
 Windows UTF-8 环境与离线测试步骤、`GET /mods` 发布元数据定义见 [发布元数据与本地验证](docs/mod-releases.md)。
+
+游戏下载字段、缓存及部署验证见 [游戏发布 API](docs/game-releases.md)。
