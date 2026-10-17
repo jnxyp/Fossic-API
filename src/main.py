@@ -1,39 +1,26 @@
 import asyncio
-import datetime
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-from fastapi_cache.backends.inmemory import InMemoryBackend
 from api import router
-from fastapi_cache import FastAPICache
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 
-from cache import mod_cache, game_cache
+from cache import snapshot_cache
 from config import CONFIG
 import log
 
 logger = log.setup_custom_logger(__name__)
 
-_loop: asyncio.AbstractEventLoop | None = None
-
 def refresh_cache():
-    logger.info("触发刷新 ModCache")
-    mods_updated = mod_cache.refresh()
-    games_updated = game_cache.refresh()
-    if (mods_updated or games_updated) and _loop is not None:
-        asyncio.run_coroutine_threadsafe(FastAPICache.clear(), _loop)
+    return snapshot_cache.refresh()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-    global _loop
-    _loop = asyncio.get_event_loop()
-    # fastapi cache
-    FastAPICache.init(InMemoryBackend(), prefix="cache")
-    # mod cache — run in thread pool to avoid blocking the event loop
+    # Database reads and encoding run off the event loop.
     await asyncio.get_event_loop().run_in_executor(None, refresh_cache)
     scheduler = BackgroundScheduler()
     scheduler.add_job(refresh_cache, trigger=IntervalTrigger(seconds=CONFIG["cache"]["mod_cache_time"]), id="refresh_cache", replace_existing=True, max_instances=1, coalesce=True)
@@ -51,24 +38,8 @@ def read_root() -> RedirectResponse:
 
 @app.get("/status")
 def get_status():
-    last_updated = mod_cache.get_update_time()
-    now = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
-    stale_threshold = CONFIG["cache"]["mod_cache_time"] * 2
-    cache_status = "ok" if last_updated >= 0 and (now - last_updated) <= stale_threshold else "expired"
-    game_updated = game_cache.get_update_time()
     return {
         "status": "ok",
         "docs_url": f"{CONFIG['fossic']['api_url']}/docs",
-        "game_cache": {
-            "status": "ok" if game_updated >= 0 and (now - game_updated) <= stale_threshold else "expired",
-            "game_count": len(game_cache.get_all_games()),
-            "last_updated": game_updated,
-            "last_updated_iso": datetime.datetime.fromtimestamp(game_updated, tz=datetime.timezone.utc).isoformat() if game_updated >= 0 else None,
-        },
-        "cache": {
-            "status": cache_status,
-            "mod_count": len(mod_cache.get_all_mods()),
-            "last_updated": last_updated,
-            "last_updated_iso": datetime.datetime.fromtimestamp(last_updated, tz=datetime.timezone.utc).isoformat() if last_updated >= 0 else None,
-        },
+        "cache": snapshot_cache.get_status(),
     }

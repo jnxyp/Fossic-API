@@ -45,7 +45,7 @@ Release 补充可空 `file_name`、`file_size`（字节）、`download_url`。�
 
 `mod_allow_direct_download` 表示作者字段设置，不代替论坛授权。行内下载扩展提供文件信息及稳定入口；签名链接仍不返回给公共 API。
 
-ModCache 和接口响应缓存默认各为 300 秒；既有后台刷新成功后清理响应缓存的流程保持不变。修改论坛字段后需等待缓存更新。
+统一SnapshotCache在后台生成默认/含Modding两种JSON视图，唯一MOD_CACHE_TIME默认300秒，无第二层响应TTL或失效清理；请求直接返回字节，修改论坛字段后等待下一轮刷新。状态集中在/status.cache，见[缓存和状态接口](../readme.md#缓存和状态接口)。
 
 ## 排序统计扩展（2026-09-13 已部署）
 

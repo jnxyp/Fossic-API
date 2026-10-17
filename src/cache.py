@@ -1,24 +1,36 @@
+"""One manager publishes complete, pre-encoded response snapshots."""
+import datetime
+import json
 import threading
 import time
-from typing import TypedDict
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
+
+from pydantic import TypeAdapter
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from config import CONFIG
 from dao import ModDAO
 from db import get_session_sync
+from models import ModInfoTypes, GameInfo
 import log
-from models import ModInfoTypes
-
-
-class _FetchResult(TypedDict):
-    game_versions: list[str]
-    mod_languages: dict[str, str]
-    mod_categories: dict[str, str]
-    mod_dependencies: dict[str, str]
-    mods: list[ModInfoTypes]
 
 logger = log.get_logger(__name__)
+MODS = TypeAdapter(list[ModInfoTypes])
+GAMES = TypeAdapter(list[GameInfo])
+
+
+def _encode(value):
+    return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    responses: Mapping[str, bytes]
+    count: int = 0
+    last_updated: int = -1
 
 
 def _fetch_with_retries(fetch, session, name):
@@ -39,99 +51,78 @@ def _fetch_with_retries(fetch, session, name):
             return None
     return None
 
-modding_fids = CONFIG["fossic"]["modding_fids"]
 
-class ModCache:
+class SnapshotCache:
     def __init__(self):
         self._lock = threading.Lock()
-        self._mods: list[ModInfoTypes] = []
-        self._game_versions: list[str] = []
-        self._mod_languages: dict[str,str] = {}
-        self._mod_categories: dict[str,str] = {}
-        self._mod_dependencies: dict[str,str] = {}
-        self._last_updated = -1
-
-    def _fetch(self, session: Session) -> _FetchResult:
-        mod_dao = ModDAO(session)
-        return {
-            "game_versions": mod_dao.get_game_versions(),
-            "mod_languages": mod_dao.get_mod_languages(),
-            "mod_categories": mod_dao.get_mod_categories(),
-            "mod_dependencies": mod_dao.get_mod_dependencies(),
-            "mods": mod_dao.get_all_mods(),
+        self._refresh_lock = threading.Lock()
+        self._snapshots = {
+            'mods': Snapshot(MappingProxyType({
+                'mods': b'[]', 'mods_all': b'[]', 'game_versions': b'[]',
+                'mod_languages': b'{}', 'mod_categories': b'{}',
+            })),
+            'games': Snapshot(MappingProxyType({'games': b'[]'})),
         }
 
-    def refresh(self, session: Session | None = None) -> bool:
-        logger.info("开始刷新 ModCache")
-        data = _fetch_with_retries(self._fetch, session, 'ModCache')
-        if data is None:
-            return False
+    def _fetch_mods(self, session: Session):
+        dao = ModDAO(session)
+        mods = dao.get_all_mods()
+        # Encode concrete union variants once, retaining translator-only fields.
+        responses = {
+            'mods_all': MODS.dump_json(MODS.validate_python(mods), warnings='error'),
+            'mods': MODS.dump_json([m for m in mods
+                if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']], warnings='error'),
+            'game_versions': _encode(dao.get_game_versions()),
+            'mod_languages': _encode(dao.get_mod_languages()),
+            'mod_categories': _encode(dao.get_mod_categories()),
+        }
+        return Snapshot(MappingProxyType(responses), len(mods), int(time.time()))
 
-        with self._lock:
-            self._game_versions = data["game_versions"]
-            self._mod_languages = data["mod_languages"]
-            self._mod_categories = data["mod_categories"]
-            self._mod_dependencies = data["mod_dependencies"]
-            self._mods = data["mods"]
-            self._last_updated = int(time.time())
-
-        logger.info(f"ModCache 刷新完成, 共 {len(self._mods)} 个有效 mod")
-        return True
-
-    def get_all_mods(self) -> list[ModInfoTypes]:
-        with self._lock:
-            return self._mods
-
-    def get_all_mods_no_modding(self) -> list[ModInfoTypes]:
-        with self._lock:
-            return [mod for mod in self._mods if mod.thread_meta.fid not in modding_fids]
-
-    def get_update_time(self) -> int:
-        with self._lock:
-            return self._last_updated
-
-    def get_game_versions(self) -> list[str]:
-        with self._lock:
-            return self._game_versions
-
-    def get_mod_languages(self) -> dict[str,str]:
-        with self._lock:
-            return self._mod_languages
-
-    def get_mod_categories(self) -> dict[str,str]:
-        with self._lock:
-            return self._mod_categories
-
-mod_cache = ModCache()
-
-
-class GameCache:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._games = []
-        self._last_updated = -1
-
-    def _fetch(self, session):
+    def _fetch_games(self, session: Session):
         from game_releases import GameDAO
-        return GameDAO(session).get_all_games()
+        games = GameDAO(session).get_all_games()
+        body = GAMES.dump_json(GAMES.validate_python(games), warnings='error')
+        return Snapshot(MappingProxyType({'games': body}), len(games), int(time.time()))
 
-    def refresh(self, session: Session | None = None) -> bool:
-        games = _fetch_with_retries(self._fetch, session, 'GameCache')
-        if games is None:
-            return False
+    def refresh(self, session: Session | None = None) -> dict[str, bool]:
+        result = {}
+        with self._refresh_lock:
+            for name, fetch in (('mods', self._fetch_mods), ('games', self._fetch_games)):
+                snapshot = _fetch_with_retries(fetch, session, name)
+                result[name] = snapshot is not None
+                if snapshot is not None:
+                    with self._lock:
+                        self._snapshots[name] = snapshot
+                    logger.info('SnapshotCache %s 刷新完成，共 %s 项', name, snapshot.count)
+        return result
+
+    def get_snapshot(self, name: str) -> Snapshot:
         with self._lock:
-            self._games = games
-            self._last_updated = int(time.time())
-        logger.info('GameCache 刷新完成，共 %s 个游戏发布帖', len(games))
-        return True
+            return self._snapshots[name]
 
-    def get_all_games(self):
+    def get_response(self, section: str, name: str) -> bytes:
+        return self.get_snapshot(section).responses[name]
+
+    def get_status(self) -> dict:
+        now = int(time.time())
+        interval = CONFIG['cache']['mod_cache_time']
         with self._lock:
-            return self._games
+            snapshots = dict(self._snapshots)
+        parts = {}
+        for name, snapshot in snapshots.items():
+            updated = snapshot.last_updated
+            parts[name] = {
+                'status': 'ok' if updated >= 0 and now - updated <= interval * 2 else 'expired',
+                'count': snapshot.count,
+                'last_updated': updated,
+                'last_updated_iso': datetime.datetime.fromtimestamp(updated, tz=datetime.timezone.utc).isoformat()
+                    if updated >= 0 else None,
+            }
+        return {
+            'status': 'ok' if all(p['status'] == 'ok' for p in parts.values()) else 'expired',
+            'refresh_interval_seconds': interval,
+            **parts,
+        }
 
-    def get_update_time(self):
-        with self._lock:
-            return self._last_updated
 
-
-game_cache = GameCache()
+snapshot_cache = SnapshotCache()

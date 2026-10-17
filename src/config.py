@@ -21,7 +21,6 @@ class FossicConfig(TypedDict):
 
 
 class CacheConfig(TypedDict):
-    api_cache_time: int
     mod_cache_time: int
 
 
@@ -49,7 +48,6 @@ CONFIG: AppConfig = {
         "game_fids": {39},
     },
     "cache": {
-        "api_cache_time": int(getenv("API_CACHE_TIME", "300")),
         "mod_cache_time": int(getenv("MOD_CACHE_TIME", "300")),
     },
 }

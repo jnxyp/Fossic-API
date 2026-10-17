@@ -1,15 +1,13 @@
-import asyncio
 import json
 
 import pytest
 from fastapi.testclient import TestClient
-from fastapi_cache import FastAPICache
 from phpserialize import dumps
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, Session, create_engine
 
 import main
-from cache import mod_cache
+from cache import snapshot_cache, SnapshotCache
 from dao import ModDAO
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
 from tables import ForumAttachment, ATTACHMENT_DETAILS
@@ -94,55 +92,40 @@ def test_invalid_choices_fail_closed(session, value):
     assert ModDAO(session).get_all_mods()[0].mod_allow_direct_download is False
 
 
-def test_route_both_caches_and_refresh(session, monkeypatch):
-    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
-    FastAPICache.reset()
-    try:
-        with TestClient(main.app) as client:
-            client.portal.call(FastAPICache.clear)
-            first = client.get('/mods')
-            assert first.status_code == 200
-            assert first.headers['x-fastapi-cache'] == 'MISS'
-            data = first.json()
-            assert client.get('/mods').json() == data
-            assert [m['thread_meta']['fid'] for m in data] == [46, 60, 78]
-            assert data[0]['mod_releases'][0]['game_version'] == '0.98'
-            assert data[0]['mod_releases'][0]['download_count'] is None
-            assert all(m['thread_meta']['title'] == 'test' for m in data)
-            assert data[0]['thread_meta']['heats'] == 28
-            assert data[0]['thread_meta']['views'] == 1000
-            assert data[1]['mod_releases'] is None
-            assert data[1]['mod_allow_direct_download'] is False
-            hit = client.get('/mods')
-            assert hit.headers['x-fastapi-cache'] == 'HIT'
-            # Existing union decoding drops an empty mod_translator_names on HIT.
-            # Normalize only that known empty/missing difference.
-            def comparable(items):
-                return [{'mod_translator_names': [], **item} for item in items]
-            assert comparable(hit.json()) == comparable(data)
-            all_mods = client.get('/mods?include_modding=true')
-            assert [m['thread_meta']['fid'] for m in all_mods.json()] == [46, 60, 78, 71]
-            assert client.get('/mods?include_modding=true').headers['x-fastapi-cache'] == 'HIT'
-            assert comparable(client.get('/mods?include_modding=false').json()) == comparable(data)
-            assert client.get('/status').json()['cache']['status'] == 'ok'
-            # Exercise the real refresh function and its response-cache invalidation.
-            option = session.get(ForumTypeOptionVar, (1, 1, 46, 39))
-            option.value = '[]'
-            session.commit()
-            with monkeypatch.context() as patch:
-                patch.setattr(mod_cache, 'refresh', lambda: mod_cache.__class__.refresh(mod_cache, session))
-                # The startup monkeypatch above is removed only for this call.
-                patch.setattr(main, 'refresh_cache', ORIGINAL_REFRESH)
-                main.refresh_cache()
-                client.portal.call(asyncio.sleep, 0)
-            refreshed = client.get('/mods')
-            assert refreshed.headers['x-fastapi-cache'] == 'MISS'
-            assert refreshed.json()[0]['mod_releases'] == []
-    finally:
-        FastAPICache.reset()
+def test_route_snapshot_views_and_refresh(session, monkeypatch):
+    monkeypatch.setattr(main, 'refresh_cache', lambda: snapshot_cache.refresh(session))
+    with TestClient(main.app) as client:
+        first = client.get('/mods')
+        assert first.status_code == 200
+        assert 'x-fastapi-cache' not in first.headers
+        data = first.json()
+        assert client.get('/mods').json() == data
+        assert [m['thread_meta']['fid'] for m in data] == [46, 60, 78]
+        assert data[0]['mod_releases'][0]['game_version'] == '0.98'
+        assert data[0]['mod_releases'][0]['download_count'] is None
+        assert all(m['thread_meta']['title'] == 'test' for m in data)
+        assert data[0]['thread_meta']['heats'] == 28
+        assert data[0]['thread_meta']['views'] == 1000
+        assert data[1]['mod_releases'] is None
+        assert data[1]['mod_allow_direct_download'] is False
+        hit = client.get('/mods')
+        assert hit.content == first.content
+        assert hit.json() == data
+        all_mods = client.get('/mods?include_modding=true')
+        assert [m['thread_meta']['fid'] for m in all_mods.json()] == [46, 60, 78, 71]
+        assert client.get('/mods?include_modding=true').content == all_mods.content
+        assert client.get('/mods?include_modding=false').json() == data
+        assert client.get('/status').json()['cache']['status'] == 'ok'
+        # A successful refresh immediately publishes all encoded Mod views.
+        option = session.get(ForumTypeOptionVar, (1, 1, 46, 39))
+        option.value = '[]'
+        session.commit()
+        assert snapshot_cache.refresh(session)['mods']
+        refreshed = client.get('/mods')
+        assert refreshed.content != first.content
+        assert refreshed.json()[0]['mod_releases'] == []
 
 
-ORIGINAL_REFRESH = main.refresh_cache
 
 
 @pytest.mark.parametrize('translators', ['', '译者甲,译者乙'])
@@ -150,20 +133,15 @@ def test_translators_survive_response_cache(session, monkeypatch, translators):
     session.add(ForumTypeOption(optionid=999, identifier='modTranslator', title='译者', type='text', rules=''))
     session.add(ForumTypeOptionVar(sortid=3, tid=3, fid=78, optionid=999, expiration=0, value=translators))
     session.commit()
-    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
-    FastAPICache.reset()
-    try:
-        with TestClient(main.app) as client:
-            client.portal.call(FastAPICache.clear)
-            first = client.get('/mods')
-            second = client.get('/mods')
-            assert first.headers['x-fastapi-cache'] == 'MISS'
-            assert second.headers['x-fastapi-cache'] == 'HIT'
-            assert first.json() == second.json()
-            translated = next(m for m in second.json() if m['thread_meta']['tid'] == 3)
-            assert translated['mod_translator_names'] == (sorted(translators.split(',')) if translators else [])
-    finally:
-        FastAPICache.reset()
+    monkeypatch.setattr(main, 'refresh_cache', lambda: snapshot_cache.refresh(session))
+    with TestClient(main.app) as client:
+        first = client.get('/mods')
+        second = client.get('/mods')
+        assert 'x-fastapi-cache' not in first.headers
+        assert second.content == first.content
+        assert first.json() == second.json()
+        translated = next(m for m in second.json() if m['thread_meta']['tid'] == 3)
+        assert translated['mod_translator_names'] == (sorted(translators.split(',')) if translators else [])
 
 
 def test_download_counts_skip_invalid_without_losing_valid(session):
@@ -237,18 +215,13 @@ def test_file_metadata_survives_response_cache(session, monkeypatch):
     session.add(ForumAttachment(aid=123, tid=1, downloads=42, tableid=2))
     session.execute(ATTACHMENT_DETAILS[2].insert(), dict(aid=123, tid=1, filename='缓存.zip', filesize=0, isimage=0, dateline=1704067200))
     session.commit()
-    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
-    FastAPICache.reset()
-    try:
-        with TestClient(main.app) as client:
-            client.portal.call(FastAPICache.clear)
-            for _ in range(2):
-                release = client.get('/mods').json()[0]['mod_releases'][0]
-                assert release['file_name'] == '缓存.zip' and release['file_size'] == 0
-                assert release['uploaded_at'] == 1704067200
-                assert release['download_url'].endswith('action=moddownload&aid=123')
-    finally:
-        FastAPICache.reset()
+    monkeypatch.setattr(main, 'refresh_cache', lambda: snapshot_cache.refresh(session))
+    with TestClient(main.app) as client:
+        for _ in range(2):
+            release = client.get('/mods').json()[0]['mod_releases'][0]
+            assert release['file_name'] == '缓存.zip' and release['file_size'] == 0
+            assert release['uploaded_at'] == 1704067200
+            assert release['download_url'].endswith('action=moddownload&aid=123')
 
 
 def test_attachment_queries_are_batched_and_deduplicated(session):
@@ -276,12 +249,10 @@ def test_attachment_queries_are_batched_and_deduplicated(session):
 
 
 def test_failed_attachment_refresh_preserves_snapshot(session, monkeypatch):
-    from cache import ModCache
     import cache
-    snapshot = ModCache()
-    assert snapshot.refresh(session)
-    previous = snapshot.get_all_mods()
-    previous_time = snapshot.get_update_time()
+    manager = SnapshotCache()
+    assert manager.refresh(session)['mods']
+    previous = manager.get_snapshot('mods')
     original_exec = session.exec
     def fail_attachment(statement, *args, **kwargs):
         if 'pre_forum_attachment' in str(statement):
@@ -289,40 +260,34 @@ def test_failed_attachment_refresh_preserves_snapshot(session, monkeypatch):
         return original_exec(statement, *args, **kwargs)
     monkeypatch.setattr(session, 'exec', fail_attachment)
     monkeypatch.setattr(cache.time, 'sleep', lambda _: None)
-    assert snapshot.refresh(session) is False
-    assert snapshot.get_all_mods() is previous
-    assert snapshot.get_update_time() == previous_time
+    result = manager.refresh(session)
+    assert result == {'mods': False, 'games': True}
+    assert manager.get_snapshot('mods') is previous
 
 
 def test_new_statistics_cached_without_request_sql(session, monkeypatch):
     session.add(ForumAttachment(aid=123, tid=1, downloads=42))
     session.commit()
-    monkeypatch.setattr(main, 'refresh_cache', lambda: mod_cache.refresh(session))
-    FastAPICache.reset()
-    try:
-        with TestClient(main.app) as client:
-            client.portal.call(FastAPICache.clear)
-            def reject_query(*args, **kwargs):
-                raise AssertionError('访客请求不应访问数据库')
-            with monkeypatch.context() as patch:
-                patch.setattr(session, 'exec', reject_query)
-                for _ in range(2):
-                    result = client.get('/mods').json()[0]
-                    assert result['mod_releases'][0]['download_count'] == 42
-                    assert result['thread_meta']['heats'] == 28
-                    assert result['thread_meta']['views'] == 1000
-            attachment = session.get(ForumAttachment, 123)
-            attachment.downloads = 50
-            session.add(attachment)
-            session.commit()
-            assert mod_cache.refresh(session)
-            client.portal.call(FastAPICache.clear)
-            assert client.get('/mods').json()[0]['mod_releases'][0]['download_count'] == 50
-            schema = client.get('/openapi.json').json()['components']['schemas']
-            assert {'heats', 'views'} <= schema['ThreadMeta']['properties'].keys()
-            assert 'download_count' in schema['ModRelease']['properties']
-    finally:
-        FastAPICache.reset()
+    monkeypatch.setattr(main, 'refresh_cache', lambda: snapshot_cache.refresh(session))
+    with TestClient(main.app) as client:
+        def reject_query(*args, **kwargs):
+            raise AssertionError('访客请求不应访问数据库')
+        with monkeypatch.context() as patch:
+            patch.setattr(session, 'exec', reject_query)
+            for _ in range(2):
+                result = client.get('/mods').json()[0]
+                assert result['mod_releases'][0]['download_count'] == 42
+                assert result['thread_meta']['heats'] == 28
+                assert result['thread_meta']['views'] == 1000
+        attachment = session.get(ForumAttachment, 123)
+        attachment.downloads = 50
+        session.add(attachment)
+        session.commit()
+        assert snapshot_cache.refresh(session)['mods']
+        assert client.get('/mods').json()[0]['mod_releases'][0]['download_count'] == 50
+        schema = client.get('/openapi.json').json()['components']['schemas']
+        assert {'heats', 'views'} <= schema['ThreadMeta']['properties'].keys()
+        assert 'download_count' in schema['ModRelease']['properties']
 
 
 @pytest.mark.parametrize('timestamp', [None, 0, -1])

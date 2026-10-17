@@ -1,35 +1,36 @@
 from fastapi import APIRouter
-from fastapi_cache.decorator import cache
+from fastapi.responses import Response
 
-from cache import mod_cache, game_cache
-from config import CONFIG
+from cache import snapshot_cache
 from models import ModInfoTypes, GameInfo
 
 router = APIRouter()
 
+
+def cached_response(section: str, name: str) -> Response:
+    return Response(content=snapshot_cache.get_response(section, name), media_type='application/json')
+
+
 @router.get("/mods", response_model=list[ModInfoTypes])
-@cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_all_mods(include_modding:bool=False) -> list[ModInfoTypes]:
-    if not include_modding:
-        return mod_cache.get_all_mods_no_modding()
-    return mod_cache.get_all_mods()
+async def get_all_mods(include_modding: bool = False) -> Response:
+    return cached_response('mods', 'mods_all' if include_modding else 'mods')
+
 
 @router.get("/meta/game_versions", response_model=list[str])
-@cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_game_versions() -> list[str]:
-    return mod_cache.get_game_versions()
+async def get_game_versions() -> Response:
+    return cached_response('mods', 'game_versions')
+
 
 @router.get("/meta/mod_languages", response_model=dict[str, str])
-@cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_mod_languages() -> dict[str, str]:
-    return mod_cache.get_mod_languages()
+async def get_mod_languages() -> Response:
+    return cached_response('mods', 'mod_languages')
+
 
 @router.get("/meta/mod_categories", response_model=dict[str, str])
-@cache(expire=CONFIG["cache"]["api_cache_time"])
-async def get_mod_categories() -> dict[str, str]:
-    return mod_cache.get_mod_categories()
+async def get_mod_categories() -> Response:
+    return cached_response('mods', 'mod_categories')
+
 
 @router.get('/games', response_model=list[GameInfo])
-@cache(expire=CONFIG['cache']['api_cache_time'])
-async def get_all_games() -> list[GameInfo]:
-    return game_cache.get_all_games()
+async def get_all_games() -> Response:
+    return cached_response('games', 'games')

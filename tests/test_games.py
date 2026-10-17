@@ -1,16 +1,14 @@
-import asyncio
 import html
 import json
 
 import pytest
 from fastapi.testclient import TestClient
-from fastapi_cache import FastAPICache
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
 
 import main
 import cache
-from cache import GameCache, game_cache, mod_cache
+from cache import snapshot_cache, SnapshotCache
 from game_releases import GameDAO, parse_game_releases, STARSECTOR_AUTHOR_NAMES
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar, ForumAttachment, ATTACHMENT_DETAILS
 from test_mods_integration import session, rules
@@ -144,63 +142,55 @@ def test_invalid_attachment_metadata(games,kind):
 
 
 def test_failure_keeps_game_snapshot_and_mods_refresh(games,monkeypatch):
-    snapshot=GameCache();assert snapshot.refresh(games)
-    previous=snapshot.get_all_games();timestamp=snapshot.get_update_time()
+    manager=SnapshotCache()
+    assert all(manager.refresh(games).values())
+    previous=manager.get_snapshot('games')
+    old_mods=manager.get_snapshot('mods')
     def failure(_):raise OperationalError('query',{},Exception('unavailable'))
-    monkeypatch.setattr(snapshot,'_fetch',failure)
+    monkeypatch.setattr(manager,'_fetch_games',failure)
     monkeypatch.setattr(cache.time,'sleep',lambda _:None)
-    assert not snapshot.refresh(games)
-    assert snapshot.get_all_games() is previous and snapshot.get_update_time()==timestamp
-    calls=[]
-    monkeypatch.setattr(mod_cache,'refresh',lambda:calls.append('mod') or True)
-    monkeypatch.setattr(game_cache,'refresh',lambda:calls.append('game') or False)
-    monkeypatch.setattr(main,'_loop',None)
-    main.refresh_cache()
-    assert calls==['mod','game']
+    assert manager.refresh(games)=={'mods':True,'games':False}
+    assert manager.get_snapshot('games') is previous
+    assert manager.get_snapshot('mods') is not old_mods
 
 
 def test_game_endpoint_caches_schema_and_invalidation(games,monkeypatch):
-    monkeypatch.setattr(main,'refresh_cache',lambda:(mod_cache.refresh(games),game_cache.refresh(games)))
-    FastAPICache.reset()
-    try:
-        with TestClient(main.app) as client:
-            client.portal.call(FastAPICache.clear)
-            first=client.get('/games');second=client.get('/games')
-            assert first.status_code==200
-            assert first.headers['x-fastapi-cache']=='MISS'
-            assert second.headers['x-fastapi-cache']=='HIT'
-            assert first.json()==second.json()
-            assert len(first.json()[0]['game_releases'])==2
-            assert 'game_title' not in first.json()[0]
-            assert first.json()[0]['game_release_name']=='汉化版 (测试)'
-            assert first.json()[0]['game_release_version']=='v2026.10.15-master'
-            assert first.json()[0]['thread_meta']['title']=='游戏 (中文) "测试"'
-            mods=client.get('/mods').json()
-            assert mods and all('title' in mod['thread_meta'] for mod in mods)
-            queries=[]
-            def record(*args):queries.append(args)
-            event.listen(games.bind,'before_cursor_execute',record)
-            try:
-                assert client.get('/games').json()==first.json()
-                assert not queries
-            finally:event.remove(games.bind,'before_cursor_execute',record)
-            assert client.get('/status').json()['game_cache']['game_count']==1
-            schema=client.get('/openapi.json').json()
-            assert '/games' in schema['paths']
-            assert 'title' in schema['components']['schemas']['ThreadMeta']['required']
-            props=schema['components']['schemas']['GameInfo']['properties']
-            assert 'game_title' not in props
-            assert 'game_release_name' in props and 'game_release_version' in props
-            assert 'game_releases' in schema['components']['schemas']['GameInfo']['properties']
-            assert schema['components']['schemas']['GameRelease']['properties']['platform']['enum']==['windows','macos','linux','universal']
-            games.get(ForumTypeOptionVar,(9,20,39,145)).value='deny';games.commit()
-            assert game_cache.refresh(games)
-            client.portal.call(FastAPICache.clear)
-            updated=client.get('/games')
-            assert updated.headers['x-fastapi-cache']=='MISS'
-            assert not updated.json()[0]['game_allow_direct_download']
-            assert updated.json()[0]['game_releases'][0]['download_url'] is None
-    finally:FastAPICache.reset()
+    monkeypatch.setattr(main,'refresh_cache',lambda:snapshot_cache.refresh(games))
+    with TestClient(main.app) as client:
+        first=client.get('/games');second=client.get('/games')
+        assert first.status_code==200
+        assert 'x-fastapi-cache' not in first.headers
+        assert second.content==first.content
+        assert first.json()==second.json()
+        assert len(first.json()[0]['game_releases'])==2
+        assert 'game_title' not in first.json()[0]
+        assert first.json()[0]['game_release_name']=='汉化版 (测试)'
+        assert first.json()[0]['game_release_version']=='v2026.10.15-master'
+        assert first.json()[0]['thread_meta']['title']=='游戏 (中文) "测试"'
+        mods=client.get('/mods').json()
+        assert mods and all('title' in mod['thread_meta'] for mod in mods)
+        queries=[]
+        def record(*args):queries.append(args)
+        event.listen(games.bind,'before_cursor_execute',record)
+        try:
+            assert client.get('/games').json()==first.json()
+            assert not queries
+        finally:event.remove(games.bind,'before_cursor_execute',record)
+        assert client.get('/status').json()['cache']['games']['count']==1
+        schema=client.get('/openapi.json').json()
+        assert '/games' in schema['paths']
+        assert 'title' in schema['components']['schemas']['ThreadMeta']['required']
+        props=schema['components']['schemas']['GameInfo']['properties']
+        assert 'game_title' not in props
+        assert 'game_release_name' in props and 'game_release_version' in props
+        assert 'game_releases' in schema['components']['schemas']['GameInfo']['properties']
+        assert schema['components']['schemas']['GameRelease']['properties']['platform']['enum']==['windows','macos','linux','universal']
+        games.get(ForumTypeOptionVar,(9,20,39,145)).value='deny';games.commit()
+        assert snapshot_cache.refresh(games)['games']
+        updated=client.get('/games')
+        assert updated.content!=first.content
+        assert not updated.json()[0]['game_allow_direct_download']
+        assert updated.json()[0]['game_releases'][0]['download_url'] is None
 
 
 @pytest.mark.parametrize('language',['zh-Hans','zh-Hant','en','other'])
