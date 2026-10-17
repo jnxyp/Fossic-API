@@ -15,19 +15,21 @@ _ENTITIES = {'&amp;': '&', '&quot;': '"', '&#039;': "'", '&#39;': "'",
 _ENTITY_PATTERN = re.compile('|'.join(re.escape(key) for key in _ENTITIES))
 
 
+def decode_discuz_json(value):
+    """Decode the forum's special-character escaping only after plain JSON fails."""
+    try:
+        return json.loads(value)
+    except ValueError:
+        return json.loads(_ENTITY_PATTERN.sub(lambda match: _ENTITIES[match[0]], value))
+
+
 def parse_mod_releases(
     value: str | None, game_versions: dict[str, str], tid: int,
 ) -> list[ModRelease] | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     try:
-        # Plain JSON may legitimately contain literal entity text in strings.
-        # Decode HTML only when the original value is not already valid JSON.
-        try:
-            entries = json.loads(value)
-        except ValueError:
-            decoded = _ENTITY_PATTERN.sub(lambda match: _ENTITIES[match[0]], value)
-            entries = json.loads(decoded)
+        entries = decode_discuz_json(value)
         if not isinstance(entries, list):
             raise ValueError('expected a JSON array')
     except (TypeError, ValueError, RecursionError):

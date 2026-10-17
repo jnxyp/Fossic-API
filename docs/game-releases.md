@@ -1,0 +1,24 @@
+# 游戏发布 API
+
+`GET /games` 返回游戏发布分类（sortid=9、当前公开版块 fid=39）的帖子列表，按 tid 倒序。字段风格与 `/mods` 一致，复用 `thread_meta`，不从文件名推测版本或平台。
+
+- 顶层：`game_title`、`game_author_names`、`game_allow_direct_download`、`game_publish_urls`、`game_releases`、`thread_meta`。
+- 作者来自 `gameReleaseAuthor`，按英文逗号拆分、去空白、去重、排序；缺失为 `[]`。直链开关来自 `gameAllowDirectDownload` 的 choices，仅选项标签“是”为 true，缺失/异常为 false。
+- 每项发布：`attachment_id`、`is_full_game`、`game_version`、`platform`、`language`、`package_type`、`release_version`、`display_name`，以及与 Mod 相同的 `download_count`、`file_name`、`file_size`、`uploaded_at`、`download_url`。
+- `game_version` 为保存的版本文字（如 `0.98`）；`release_version` 保留 `v` 等作者文字。平台 windows/macos/linux/universal，语言 zh/en/other，包类型 zip/self_extracting/other。空备注为 null，数组顺序保留。
+- JSON 解析先尝试原文，失败时只解码一层 Discuz 特殊字符实体。最多200项，非法条目和重复 aid 局部过滤；字段缺失/坏 JSON 为 null，显式空数组为 []。日志只记录 tid 和数量。
+- 附件元数据与 Mod 复用同一批查函数：索引 tableid 决定真实分表，每批最多500项；跨帖、图片、缺失/非法明细不生成文件信息或 URL，不探测 COS/CDN。
+
+直链开启且附件明细有效时，链接为 `https://www.fossic.org/forum.php?mod=misc&action=gamedownload&aid=<ID>`。入口即时核验游戏分类、附件/帖子归属、发布登记及作者开关，再进入原生附件下载流程，由原生流程执行权限和计数；开关关闭则跳回帖子。API 缓存中的旧链接不能绕过新关闭的开关。返回链接不代表任意访客都有下载权限。
+
+## 缓存与验证
+
+游戏使用独立的内存快照，沿用现有刷新周期（默认300秒）和接口缓存。请求不查库，刷新失败保留旧快照；任一快照更新时清除接口缓存。`/status` 增加 `game_cache`，原 `cache` 保留 Mod 含义。没有数据库结构或权限变更。
+
+在仓库根运行 `.venv/Scripts/python.exe -X utf8 -m pytest -q`。本轮104项通过，涵盖 SQLite 分表、公开范围、字段/开关、坏数据、缓存失败保留及接口契约；论坛另有53项 Mod/游戏下载入口测试。
+
+上线前同一线上只读事务对比784个 Mod，新旧返回完全一致；游戏帖19430的16项均有完整元数据，作者未填写、直链开关未设置，保持 []/false、所有 download_url=null。正向开放分支使用隔离测试验证，不为验收自动改变公开帖开关。
+
+## 部署与回滚
+
+先部署论坛下载入口及已有字段45/46绑定，再 fast-forward API 并仅重启 `fossic-api` 服务。线上 `.env` 不覆盖。回滚 API 可恢复部署前代码；论坛分类模板和字段绑定先从本次 `data/deploy-backups/game-api-before-*.json` 核对恢复，更新 threadsorts 缓存。不得删除或覆盖用户后来填写的分类字段值。

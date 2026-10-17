@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 
-from cache import mod_cache
+from cache import mod_cache, game_cache
 from config import CONFIG
 import log
 
@@ -22,7 +22,9 @@ _loop: asyncio.AbstractEventLoop | None = None
 
 def refresh_cache():
     logger.info("触发刷新 ModCache")
-    if mod_cache.refresh() and _loop is not None:
+    mods_updated = mod_cache.refresh()
+    games_updated = game_cache.refresh()
+    if (mods_updated or games_updated) and _loop is not None:
         asyncio.run_coroutine_threadsafe(FastAPICache.clear(), _loop)
 
 @asynccontextmanager
@@ -53,9 +55,16 @@ def get_status():
     now = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
     stale_threshold = CONFIG["cache"]["mod_cache_time"] * 2
     cache_status = "ok" if last_updated >= 0 and (now - last_updated) <= stale_threshold else "expired"
+    game_updated = game_cache.get_update_time()
     return {
         "status": "ok",
         "docs_url": f"{CONFIG['fossic']['api_url']}/docs",
+        "game_cache": {
+            "status": "ok" if game_updated >= 0 and (now - game_updated) <= stale_threshold else "expired",
+            "game_count": len(game_cache.get_all_games()),
+            "last_updated": game_updated,
+            "last_updated_iso": datetime.datetime.fromtimestamp(game_updated, tz=datetime.timezone.utc).isoformat() if game_updated >= 0 else None,
+        },
         "cache": {
             "status": cache_status,
             "mod_count": len(mod_cache.get_all_mods()),

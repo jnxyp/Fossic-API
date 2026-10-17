@@ -224,45 +224,10 @@ class ModDAO(BaseDAO):
         return mod_info_objects
 
     def populate_download_counts(self, mods: list[ModInfoTypes]) -> None:
-        from tables import ATTACHMENT_DETAILS
-        # 仅在缓存刷新时按主键批查；去重避免同一附件重复访问数据库。
-        aids = sorted({release.attachment_id for mod in mods for release in mod.mod_releases or []})
-        attachments = {}
-        for start in range(0, len(aids), 500):
-            statement = select(ForumAttachment).where(col(ForumAttachment.aid).in_(aids[start:start + 500]))
-            for attachment in self.session.exec(statement).all():
-                attachments[attachment.aid] = attachment
-        details = {}
-        eligible = {release.attachment_id for mod in mods for release in mod.mod_releases or []
-                    if release.attachment_id in attachments
-                    and attachments[release.attachment_id].tid == mod.thread_meta.tid}
-        for shard, table in ATTACHMENT_DETAILS.items():
-            shard_aids = sorted(aid for aid in eligible if attachments[aid].tableid == shard)
-            for start in range(0, len(shard_aids), 500):
-                statement = select(table).where(table.c.aid.in_(shard_aids[start:start + 500]))
-                for detail in self.session.execute(statement).mappings():
-                    details[detail['aid']] = detail
-        for mod in mods:
-            for release in mod.mod_releases or []:
-                attachment = attachments.get(release.attachment_id)
-                release.download_count = (
-                    attachment.downloads
-                    if attachment is not None and attachment.tid == mod.thread_meta.tid and attachment.downloads >= 0
-                    else None
-                )
-                release.file_name = release.file_size = release.download_url = release.uploaded_at = None
-                detail = details.get(release.attachment_id)
-                if (attachment is None or attachment.tid != mod.thread_meta.tid or detail is None
-                        or detail['tid'] != mod.thread_meta.tid or detail['isimage'] != 0
-                        or not detail['filename'] or detail['filesize'] is None or detail['filesize'] < 0):
-                    continue
-                release.file_name = detail['filename']
-                release.file_size = detail['filesize']
-                uploaded_at = detail['dateline']
-                release.uploaded_at = uploaded_at if isinstance(uploaded_at, int) and uploaded_at > 0 else None
-                if mod.mod_allow_direct_download:
-                    release.download_url = ('https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid='
-                                            + str(release.attachment_id))
+        from attachments import populate_attachment_metadata
+        populate_attachment_metadata(self.session,
+            ((mod.thread_meta.tid, mod.mod_releases or [], mod.mod_allow_direct_download) for mod in mods),
+            'moddownload')
 
 
 if __name__ == "__main__":

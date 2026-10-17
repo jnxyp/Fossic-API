@@ -99,3 +99,28 @@ class ModInfoReposted(ModInfo):
 
 ModInfoTypes = ModInfoOriginal | ModInfoTranslated | ModInfoReposted
 
+
+
+class GameRelease(SQLModel):
+    attachment_id: int
+    is_full_game: bool
+    game_version: str
+    platform: Literal['windows', 'macos', 'linux', 'universal']
+    language: Literal['zh', 'en', 'other']
+    package_type: Literal['zip', 'self_extracting', 'other']
+    release_version: str
+    display_name: str | None = None
+    download_count: int | None = None
+    file_name: str | None = None
+    file_size: int | None = None
+    uploaded_at: int | None = None
+    download_url: str | None = None
+
+
+class GameInfo(SQLModel):
+    game_title: str
+    game_author_names: list[str] = []
+    game_allow_direct_download: bool = False
+    game_publish_urls: list[str]
+    game_releases: list[GameRelease] | None = None
+    thread_meta: ThreadMeta

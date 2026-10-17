@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 from fastapi_cache.decorator import cache
 
-from cache import mod_cache
+from cache import mod_cache, game_cache
 from config import CONFIG
-from models import ModInfoTypes
+from models import ModInfoTypes, GameInfo
 
 router = APIRouter()
 
@@ -28,3 +28,8 @@ async def get_mod_languages() -> dict[str, str]:
 @cache(expire=CONFIG["cache"]["api_cache_time"])
 async def get_mod_categories() -> dict[str, str]:
     return mod_cache.get_mod_categories()
+
+@router.get('/games', response_model=list[GameInfo])
+@cache(expire=CONFIG['cache']['api_cache_time'])
+async def get_all_games() -> list[GameInfo]:
+    return game_cache.get_all_games()

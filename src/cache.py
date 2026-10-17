@@ -20,6 +20,25 @@ class _FetchResult(TypedDict):
 
 logger = log.get_logger(__name__)
 
+
+def _fetch_with_retries(fetch, session, name):
+    for attempt in range(1, 4):
+        try:
+            if session is not None:
+                return fetch(session)
+            with get_session_sync() as s:
+                return fetch(s)
+        except SQLAlchemyError:
+            if attempt < 3:
+                logger.warning('刷新 %s 失败 (第 %s/3 次)，5s 后重试', name, attempt)
+                time.sleep(5)
+            else:
+                logger.exception('刷新 %s 失败，保留旧快照', name)
+        except Exception:
+            logger.exception('刷新 %s 失败，保留旧快照', name)
+            return None
+    return None
+
 modding_fids = CONFIG["fossic"]["modding_fids"]
 
 class ModCache:
@@ -44,26 +63,9 @@ class ModCache:
 
     def refresh(self, session: Session | None = None) -> bool:
         logger.info("开始刷新 ModCache")
-        max_retries = 3
-        retry_interval = 5
-        for attempt in range(1, max_retries + 1):
-            try:
-                if session:
-                    data = self._fetch(session)
-                else:
-                    with get_session_sync() as s:
-                        data = self._fetch(s)
-                break
-            except SQLAlchemyError as e:
-                if attempt < max_retries:
-                    logger.warning(f"刷新 ModCache 失败 (第 {attempt}/{max_retries} 次), {retry_interval}s 后重试: {e}")
-                    time.sleep(retry_interval)
-                else:
-                    logger.error(f"刷新 ModCache 失败，已重试 {max_retries} 次，放弃: {e}", exc_info=True)
-                    return False
-            except Exception as e:
-                logger.error(f"刷新 ModCache 失败: {e}", exc_info=True)
-                return False
+        data = _fetch_with_retries(self._fetch, session, 'ModCache')
+        if data is None:
+            return False
 
         with self._lock:
             self._game_versions = data["game_versions"]
@@ -101,3 +103,35 @@ class ModCache:
             return self._mod_categories
 
 mod_cache = ModCache()
+
+
+class GameCache:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._games = []
+        self._last_updated = -1
+
+    def _fetch(self, session):
+        from game_releases import GameDAO
+        return GameDAO(session).get_all_games()
+
+    def refresh(self, session: Session | None = None) -> bool:
+        games = _fetch_with_retries(self._fetch, session, 'GameCache')
+        if games is None:
+            return False
+        with self._lock:
+            self._games = games
+            self._last_updated = int(time.time())
+        logger.info('GameCache 刷新完成，共 %s 个游戏发布帖', len(games))
+        return True
+
+    def get_all_games(self):
+        with self._lock:
+            return self._games
+
+    def get_update_time(self):
+        with self._lock:
+            return self._last_updated
+
+
+game_cache = GameCache()

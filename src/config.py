@@ -17,6 +17,7 @@ class FossicConfig(TypedDict):
     api_url: str
     mod_fids: set[int]
     modding_fids: set[int]
+    game_fids: set[int]
 
 
 class CacheConfig(TypedDict):
@@ -45,6 +46,7 @@ CONFIG: AppConfig = {
         "api_url": "https://api.fossic.org",
         "mod_fids": {46, 60, 78},
         "modding_fids": {71},
+        "game_fids": {39},
     },
     "cache": {
         "api_cache_time": int(getenv("API_CACHE_TIME", "300")),
