@@ -16,7 +16,7 @@ from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar, ForumAttach
 from test_mods_integration import session, rules
 
 ENTRY = dict(aid=900, isFullGame=True, gameVersion='0.98', platform='windows',
-             language='zh', packageType='zip', releaseVersion='v2026.10.15',
+             language='zh-Hans', packageType='zip', releaseVersion='v2026.10.15',
              displayName='中文汉化版(宋体版) v2026.10.15')
 
 
@@ -68,7 +68,7 @@ def test_literal_entities_order_and_null(escaped):
     {'aid':True},{'aid':1.5},{'aid':0},{'aid':4294967296},{'aid':'９'},
     {'isFullGame':'false'},{'isFullGame':1},{'gameVersion':''},{'gameVersion':'x'*65},
     {'releaseVersion':False},{'releaseVersion':'x'*129},{'platform':'Windows'},
-    {'language':'中文'},{'packageType':'exe'},{'displayName':{}},
+    {'language':'中文'},{'language':'zh'},{'packageType':'exe'},{'displayName':{}},
     {'displayName':'x'*201},{'displayName':'\ud800'},{'extra':'bad'},
 ])
 def test_bad_item_is_local(patch,caplog):
@@ -187,3 +187,9 @@ def test_game_endpoint_caches_schema_and_invalidation(games,monkeypatch):
             assert not updated.json()[0]['game_allow_direct_download']
             assert updated.json()[0]['game_releases'][0]['download_url'] is None
     finally:FastAPICache.reset()
+
+
+@pytest.mark.parametrize('language',['zh-Hans','zh-Hant','en','other'])
+def test_game_language_values(language):
+    result=parse_game_releases(json.dumps([{**ENTRY,'language':language}]),20)
+    assert len(result)==1 and result[0].language==language

@@ -106,7 +106,7 @@ class GameRelease(SQLModel):
     is_full_game: bool
     game_version: str
     platform: Literal['windows', 'macos', 'linux', 'universal']
-    language: Literal['zh', 'en', 'other']
+    language: Literal['zh-Hans', 'zh-Hant', 'en', 'other']
     package_type: Literal['zip', 'self_extracting', 'other']
     release_version: str
     display_name: str | None = None

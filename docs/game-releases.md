@@ -5,7 +5,7 @@
 - 顶层：`game_title`、`game_author_names`、`game_allow_direct_download`、`game_publish_urls`、`game_releases`、`thread_meta`。
 - 作者来自 `gameReleaseAuthor`，按英文逗号拆分、去空白、去重、排序；缺失为 `[]`。直链开关来自 `gameAllowDirectDownload` 的 choices，仅选项标签“是”为 true，缺失/异常为 false。
 - 每项发布：`attachment_id`、`is_full_game`、`game_version`、`platform`、`language`、`package_type`、`release_version`、`display_name`，以及与 Mod 相同的 `download_count`、`file_name`、`file_size`、`uploaded_at`、`download_url`。
-- `game_version` 为保存的版本文字（如 `0.98`）；`release_version` 保留 `v` 等作者文字。平台 windows/macos/linux/universal，语言 zh/en/other，包类型 zip/self_extracting/other。空备注为 null，数组顺序保留。
+- `game_version` 为保存的版本文字（如 `0.98`）；`release_version` 保留 `v` 等作者文字。平台 windows/macos/linux/universal，语言 zh-Hans/zh-Hant/en/other，包类型 zip/self_extracting/other。空备注为 null，数组顺序保留。
 - JSON 解析先尝试原文，失败时只解码一层 Discuz 特殊字符实体。最多200项，非法条目和重复 aid 局部过滤；字段缺失/坏 JSON 为 null，显式空数组为 []。日志只记录 tid 和数量。
 - 附件元数据与 Mod 复用同一批查函数：索引 tableid 决定真实分表，每批最多500项；跨帖、图片、缺失/非法明细不生成文件信息或 URL，不探测 COS/CDN。
 
