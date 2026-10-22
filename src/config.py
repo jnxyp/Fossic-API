@@ -29,9 +29,13 @@ class AppConfig(TypedDict):
     debug: bool
     fossic: FossicConfig
     cache: CacheConfig
+    allowed_hosts: list[str]
 
 
 CONFIG: AppConfig = {
+    "allowed_hosts": [host.strip() for host in getenv(
+        "ALLOWED_HOSTS", "api.fossic.org,localhost,127.0.0.1,[::1]"
+    ).split(",") if host.strip()],
     "db": {
         "host": getenv("DB_HOST"),
         "port": getenv("DB_PORT"),

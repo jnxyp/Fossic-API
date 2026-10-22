@@ -62,3 +62,6 @@ count是含Modding的Mod总数或游戏帖数。各类别最后成功刷新时�
 2026-10-16 PDT部署：运行b5ffe69，119项本地回归通过。生产只读事务对比全部六种响应与DAO模型JSON完全相同（784个Mod、1个游戏）；新镜像同样通过此验证且fastapi_cache模块不存在。公网默认481个Mod、含Modding784个、游戏16个附件/直链，所有接口重复请求字节一致、默认和显式false一致、OpenAPI及集中/status正常。只重建API容器，json-file轮转20m×3、仅src bind mount，无匿名卷。
 
 首次Compose构建因构建桥接网络DNS解析失败，改用docker build --network=host构建成功；运行网络未改变。旧镜像保留为fossic-api-fossic-api:before-cache-unification-89fb965；原.env备份位于相邻FossicDiscuz/data/deploy-backups/api-env-before-cache-unification-89fb965.env（0600、1000:1000、既有Restic范围），只移除废弃API_CACHE_TIME，其余变量原样保留。回滚须同时恢复Git 89fb965、旧.env及旧镜像标签，再仅重建API容器；旧代码依赖fastapi-cache2，不能直接搭配新镜像运行。
+
+
+安全加固改动、兼容边界与本地验证见 [2026-10-21 安全修复（待审核，未部署）](docs/security-2026-10-21.md)。
