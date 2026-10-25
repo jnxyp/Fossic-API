@@ -1,4 +1,7 @@
 import json
+import math
+
+import pytest
 import threading
 from types import MappingProxyType
 
@@ -25,6 +28,7 @@ def test_requests_use_encoded_snapshot_without_sql_or_encoding(session, monkeypa
             raise AssertionError('request must not query or encode')
         event.listen(session.bind, 'before_cursor_execute', reject)
         try:
+            monkeypatch.setattr(cache, 'calculate_recommendation_score', reject)
             monkeypatch.setattr(cache, '_encode', reject)
             monkeypatch.setattr(cache.TypeAdapter, 'dump_json', reject)
             for path, body in zip(paths, expected):
@@ -98,3 +102,54 @@ def test_publish_only_after_all_responses_are_ready(monkeypatch):
     assert json.loads(snapshot.responses['mods']) == [1]
     assert json.loads(snapshot.responses['mods_all']) == [1,2]
     assert snapshot.count == 2 and snapshot.last_updated == 1000
+
+
+def test_mod_scores_share_one_snapshot_time(session, monkeypatch):
+    manager = SnapshotCache()
+    calls = []
+    monkeypatch.setattr(cache.time, 'time', lambda: 1_800_000_000)
+    original = cache.calculate_recommendation_score
+    def record(mod, *, now):
+        calls.append((mod.thread_meta.tid, now))
+        return original(mod, now=now)
+    monkeypatch.setattr(cache, 'calculate_recommendation_score', record)
+    assert manager.refresh(session) == {'mods': True, 'games': True}
+    snapshot = manager.get_snapshot('mods')
+    assert calls == [(tid, snapshot.last_updated) for tid in [1, 2, 3, 4]]
+    assert snapshot.last_updated == 1_800_000_000
+    full = {m['thread_meta']['tid']: m for m in json.loads(snapshot.responses['mods_all'])}
+    for item in json.loads(snapshot.responses['mods']):
+        assert item == full[item['thread_meta']['tid']]
+
+
+def test_mod_scores_change_only_after_refresh(session, monkeypatch):
+    manager = SnapshotCache()
+    # Fixture date is midnight UTC+8, 2026-09-12.
+    start = 1_789_142_400
+    monkeypatch.setattr(cache.time, 'time', lambda: start)
+    assert manager.refresh(session)['mods']
+    before = manager.get_response('mods', 'mods')
+    monkeypatch.setattr(cache.time, 'time', lambda: start + int(7.5 * 86400))
+    assert manager.get_response('mods', 'mods') == before
+    assert manager.refresh(session)['mods']
+    after = manager.get_response('mods', 'mods')
+    assert json.loads(before)[0]['mod_recommendation_score'] == 5
+    assert json.loads(after)[0]['mod_recommendation_score'] == pytest.approx(2.5)
+
+
+@pytest.mark.parametrize('bad', ['raise', math.nan, math.inf, -math.inf, -1])
+def test_scoring_failure_keeps_entire_mod_snapshot(session, monkeypatch, bad):
+    manager = SnapshotCache()
+    assert manager.refresh(session)['mods']
+    previous = manager.get_snapshot('mods')
+    original = cache.calculate_recommendation_score
+    def broken(mod, *, now):
+        if mod.thread_meta.tid == 2:
+            if bad == 'raise':
+                raise ValueError('scoring failed')
+            return bad
+        return original(mod, now=now)
+    monkeypatch.setattr(cache, 'calculate_recommendation_score', broken)
+    assert manager.refresh(session) == {'mods': False, 'games': True}
+    assert manager.get_snapshot('mods') is previous
+    assert manager.get_status()['mods']['last_updated'] == previous.last_updated

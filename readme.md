@@ -30,6 +30,8 @@ Windows UTF-8 环境与离线测试步骤、`GET /mods` 发布元数据定义见
 
 游戏下载字段、缓存及部署验证见 [游戏发布 API](docs/game-releases.md)。
 
+Mod 综合推荐评分字段、所有版本下载口径及前端消费约定见 [综合推荐分](docs/mod-recommendation.md)。
+
 
 ## 缓存和状态接口
 
