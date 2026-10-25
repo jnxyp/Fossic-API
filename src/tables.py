@@ -15,6 +15,8 @@ class ForumTypeOption(SQLModel, table=True):
     identifier: str
     type: str
     rules: str
+    protect: str = ''
+    expiration: int = 0
     
     @classmethod
     def get_options(cls, session:Session, optionid:int) -> Dict[str, str]:

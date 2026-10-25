@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 
 from sqlmodel import Session, select, col
@@ -7,6 +8,7 @@ from db import get_session_sync
 import log
 from models import ModInfoOriginal, ModInfoReposted, ModInfoTranslated, ModInfoType, ModInfoTypes, ThreadFeaturedLevel
 from mod_releases import parse_mod_releases
+from mod_ai_declaration import parse_mod_ai_declaration, is_public_ai_option
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar, ForumAttachment
 from utils import date_string_to_timestamp, get_thread_url
 
@@ -59,6 +61,7 @@ class ModDAO(BaseDAO):
 
         mod_info = defaultdict(dict)  # {tid: dict(ModInfo)}
         direct_download_choices = {}
+        now = int(time.time())
 
         for option, option_var, thread in results:
             identifier = option.identifier
@@ -99,6 +102,11 @@ class ModDAO(BaseDAO):
                 mod_info[tid][self.mod_info_identifier_mapping[identifier]] = value
                 continue
 
+            if identifier == "modAiDeclaration":
+                if (option_var.sortid == thread.sortid and option_var.fid == thread.fid
+                        and is_public_ai_option(option, option_var, now)):
+                    mod_info[tid]["mod_ai_declaration"] = parse_mod_ai_declaration(value, tid)
+                continue
             if identifier == "modReleaseFilesMapping":
                 mod_info[tid]["mod_releases"] = parse_mod_releases(value, game_versions, tid)
                 continue

@@ -1,6 +1,6 @@
 from enum import Enum
-from typing import List, Literal
-from pydantic import Field
+from typing import List, Literal, Self
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlmodel import SQLModel
 
 
@@ -63,6 +63,36 @@ class ModRelease(SQLModel):
     download_url: str | None = None  # 稳定论坛入口，不含签名或存储地址
 
 
+class ModAiDeclaration(BaseModel):
+    """Normalized publisher declaration, not an automated assessment."""
+    model_config = ConfigDict(extra='forbid')
+
+    status: Literal['undeclared', 'yes', 'no']
+    code: Literal['undeclared', 'none', 'assisted', 'full']
+    art: Literal['undeclared', 'none', 'assisted', 'full']
+    audio: Literal['undeclared', 'none', 'assisted', 'full']
+    text: Literal['undeclared', 'none', 'assisted', 'full']
+
+    @model_validator(mode='after')
+    def validate_dimensions(self) -> Self:
+        dimensions = (self.code, self.art, self.audio, self.text)
+        if self.status == 'undeclared':
+            valid = all(value == 'undeclared' for value in dimensions)
+        elif self.status == 'no':
+            valid = all(value == 'none' for value in dimensions)
+        else:
+            valid = ('undeclared' not in dimensions
+                     and any(value != 'none' for value in dimensions))
+        if not valid:
+            raise ValueError('AI declaration status and dimensions are inconsistent')
+        return self
+
+    @classmethod
+    def undeclared(cls) -> Self:
+        return cls(status='undeclared', code='undeclared', art='undeclared',
+                   audio='undeclared', text='undeclared')
+
+
 class ModInfo(SQLModel):
     mod_info_type: ModInfoType
     mod_id: str
@@ -79,6 +109,11 @@ class ModInfo(SQLModel):
     mod_short_description: str
     mod_language: str
     mod_update_date: int
+    mod_ai_declaration: ModAiDeclaration = Field(
+        default_factory=ModAiDeclaration.undeclared,
+        description='发布者自愿填写的生成式AI声明，不代表质量评价或平台检测；'
+                    '未声明时status及四个维度均为undeclared',
+    )
     mod_download_count: int = Field(default=0, ge=0, strict=True,
         description='本发布帖跨版本、按附件去重的持久累计下载量，含已删除或排除附件的冻结贡献')
     mod_excluded_download_count: int = Field(default=0, ge=0, strict=True,
