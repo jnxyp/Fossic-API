@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from config import CONFIG
 from dao import ModDAO
+from download_stats import DownloadStatsStore, checked_count, current_releases
 from db import get_session_sync
 from models import ModInfoTypes, GameInfo
 from mod_recommendation import calculate_recommendation_score
@@ -55,7 +56,9 @@ def _fetch_with_retries(fetch, session, name):
 
 
 class SnapshotCache:
-    def __init__(self):
+    def __init__(self, stats_store: DownloadStatsStore | None = None):
+        self.stats_store = stats_store if stats_store is not None else DownloadStatsStore(
+            CONFIG['download_stats']['db_path'])
         self._lock = threading.Lock()
         self._refresh_lock = threading.Lock()
         self._snapshots = {
@@ -69,24 +72,40 @@ class SnapshotCache:
     def _fetch_mods(self, session: Session):
         dao = ModDAO(session)
         source_mods = MODS.validate_python(dao.get_all_mods())
-        now = int(time.time())
-        mods = []
-        for mod in source_mods:
-            score = calculate_recommendation_score(mod, now=now)
-            # model_copy does not validate updates; never serialize a bad score as null.
-            if not math.isfinite(score) or score < 0:
-                raise ValueError('Invalid Mod recommendation score')
-            mods.append(mod.model_copy(update={'mod_recommendation_score': score}))
-        # Encode concrete union variants once, retaining translator-only fields.
-        responses = {
-            'mods_all': MODS.dump_json(mods, warnings='error'),
-            'mods': MODS.dump_json([m for m in mods
-                if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']], warnings='error'),
-            'game_versions': _encode(dao.get_game_versions()),
-            'mod_languages': _encode(dao.get_mod_languages()),
-            'mod_categories': _encode(dao.get_mod_categories()),
+        # Complete forum I/O before taking the statistics writer lock.
+        metadata = {
+            'game_versions': dao.get_game_versions(),
+            'mod_languages': dao.get_mod_languages(),
+            'mod_categories': dao.get_mod_categories(),
         }
-        return Snapshot(MappingProxyType(responses), len(mods), now)
+        now = int(time.time())
+        with self.stats_store.write_transaction() as connection:
+            self.stats_store.apply_observations(connection, source_mods, now=now)
+            summaries = self.stats_store.get_mod_summaries(
+                connection, [mod.thread_meta.tid for mod in source_mods])
+            mods = []
+            for mod in source_mods:
+                summary = summaries[mod.thread_meta.tid]
+                releases = current_releases(mod.mod_releases).values()
+                displayed = sum(r.download_count for r in releases
+                    if type(r.download_count) is int and r.download_count >= 0)
+                excluded = checked_count(summary['mod_download_count'] - displayed)
+                # Validate the complete updated model: model_copy(update=...) skips validation.
+                enriched = mod.__class__.model_validate({**mod.model_dump(), **summary,
+                    'mod_excluded_download_count': excluded})
+                score = calculate_recommendation_score(enriched, now=now)
+                if not math.isfinite(score) or score < 0:
+                    raise ValueError('Invalid Mod recommendation score')
+                mods.append(enriched.model_copy(update={'mod_recommendation_score': score}))
+            responses = {
+                'mods_all': MODS.dump_json(mods, warnings='error'),
+                'mods': MODS.dump_json([m for m in mods
+                    if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']], warnings='error'),
+                **{key: _encode(value) for key, value in metadata.items()},
+            }
+            snapshot = Snapshot(MappingProxyType(responses), len(mods), now)
+        # Commit precedes publication; any encoding/validation failure rolls back the ledger.
+        return snapshot
 
     def _fetch_games(self, session: Session):
         from game_releases import GameDAO

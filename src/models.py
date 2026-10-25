@@ -63,6 +63,12 @@ class ModRelease(SQLModel):
     download_url: str | None = None  # 稳定论坛入口，不含签名或存储地址
 
 
+class ModGameVersionDownloadCount(SQLModel):
+    game_version_id: str
+    game_version: str
+    download_count: int = Field(ge=0, strict=True)
+
+
 class ModInfo(SQLModel):
     mod_info_type: ModInfoType
     mod_id: str
@@ -79,9 +85,17 @@ class ModInfo(SQLModel):
     mod_short_description: str
     mod_language: str
     mod_update_date: int
+    mod_download_count: int = Field(default=0, ge=0, strict=True,
+        description='本发布帖跨版本、按附件去重的持久累计下载量，含已删除或排除附件的冻结贡献')
+    mod_excluded_download_count: int = Field(default=0, ge=0, strict=True,
+        description='未被当前 releases 有效计数覆盖的历史下载贡献，含已删除/排除附件及源计数回退差额；'
+                    '与当前附件有效计数去重之和相加等于 mod_download_count')
+    mod_download_counts_by_game_version: list[ModGameVersionDownloadCount] = Field(
+        default_factory=list,
+        description='按附件最后有效游戏版本归属汇总的持久累计量，含历史版本；各项之和等于总量')
     mod_recommendation_score: float = Field(
         default=0.0, ge=0, allow_inf_nan=False,
-        description='所有版本附件下载合计的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
+        description='持久累计下载总量的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
     )
     mod_publish_urls: List[str]
 

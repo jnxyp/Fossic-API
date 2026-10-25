@@ -11,8 +11,11 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./src:/app:ro
+      - ./data:/data
     env_file:
       - .env
+    environment:
+      DOWNLOAD_STATS_DB_PATH: /data/download-stats.sqlite3
     networks:
       - default
       - forum-db

@@ -21,6 +21,8 @@ def refresh_cache():
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    # Initialization is mandatory; never serve a silently recreated in-memory counter.
+    await asyncio.get_running_loop().run_in_executor(None, snapshot_cache.stats_store.initialize)
     # Database reads and encoding run off the event loop.
     await asyncio.get_event_loop().run_in_executor(None, refresh_cache)
     scheduler = BackgroundScheduler()

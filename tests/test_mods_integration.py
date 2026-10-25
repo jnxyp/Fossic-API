@@ -331,6 +331,9 @@ def test_recommendation_preserves_payload_order_and_query_count(session, monkeyp
     for actual, old in zip(data, expected):
         score = actual.pop('mod_recommendation_score')
         old.pop('mod_recommendation_score')
+        for key in ('mod_download_count', 'mod_excluded_download_count', 'mod_download_counts_by_game_version'):
+            actual.pop(key)
+            old.pop(key)
         assert actual == old
         assert math.isfinite(score) and score >= 0
         assert 'calculated_at' not in actual and 'mod_recommendation' not in actual

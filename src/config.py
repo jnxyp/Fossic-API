@@ -24,11 +24,16 @@ class CacheConfig(TypedDict):
     mod_cache_time: int
 
 
+class DownloadStatsConfig(TypedDict):
+    db_path: str
+
+
 class AppConfig(TypedDict):
     db: DbConfig
     debug: bool
     fossic: FossicConfig
     cache: CacheConfig
+    download_stats: DownloadStatsConfig
     allowed_hosts: list[str]
 
 
@@ -50,6 +55,9 @@ CONFIG: AppConfig = {
         "mod_fids": {46, 60, 78},
         "modding_fids": {71},
         "game_fids": {39},
+    },
+    "download_stats": {
+        "db_path": getenv("DOWNLOAD_STATS_DB_PATH", "data/download-stats.sqlite3"),
     },
     "cache": {
         "mod_cache_time": int(getenv("MOD_CACHE_TIME", "300")),

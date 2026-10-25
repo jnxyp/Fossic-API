@@ -5,3 +5,12 @@ __pycache__/
 .env
 *.pyc
 *.pyo
+
+# Persistent statistics and consistent backups are never source/build inputs.
+data/
+*.sqlite3
+*.sqlite3-*
+*.sqlite3.*
+
+.pytest_cache/
+**/*.sqlite3*
