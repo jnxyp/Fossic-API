@@ -79,9 +79,14 @@ class ModInfo(SQLModel):
     mod_short_description: str
     mod_language: str
     mod_update_date: int
+    mod_download_count: int = Field(default=0, ge=0, strict=True,
+        description='本发布帖跨版本、按附件去重的持久累计下载量，含已删除或排除附件的冻结贡献')
+    mod_excluded_download_count: int = Field(default=0, ge=0, strict=True,
+        description='未被当前 releases 有效计数覆盖的历史下载贡献，含已删除/排除附件及源计数回退差额；'
+                    '与当前附件有效计数去重之和相加等于 mod_download_count')
     mod_recommendation_score: float = Field(
         default=0.0, ge=0, allow_inf_nan=False,
-        description='所有版本附件下载合计的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
+        description='持久累计下载总量的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
     )
     mod_publish_urls: List[str]
 

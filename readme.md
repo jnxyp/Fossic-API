@@ -20,11 +20,12 @@ pip install -r requirements.txt
 ```
 2. 复制 `.env.sample` 为 `.env`，填写本地或只读数据库连接信息。不要覆盖已有 `.env`。
 3. 如需连接服务器，先读运维仓库 `cn-hk-fossic/README.md`；只使用 SSH 别名 `cn-hk-fossic`。MySQL 无宿主机端口映射，旧的 `localhost:3306` 转发方式已不适用。不要为本地测试开放线上端口。
-4. 从仓库根目录启动服务
+4. 首次启动前创建统计目录 `data/`（或 DOWNLOAD_STATS_DB_PATH 指定文件的父目录），确保服务用户可写。SQLite 是业务统计，不是可删除重建的缓存；部署权限、备份和恢复要求见 [持久下载统计](docs/download-statistics.md)。
+5. 从仓库根目录启动服务
 ```bash
 python -X utf8 -m uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000
 ```
-5. 访问 http://localhost:8000/ 检查服务状态，http://localhost:8000/docs 查看API文档
+6. 访问 http://localhost:8000/ 检查服务状态，http://localhost:8000/docs 查看API文档
 
 Windows UTF-8 环境与离线测试步骤、`GET /mods` 发布元数据定义见 [发布元数据与本地验证](docs/mod-releases.md)。
 
@@ -32,10 +33,12 @@ Windows UTF-8 环境与离线测试步骤、`GET /mods` 发布元数据定义见
 
 Mod 综合推荐评分字段、所有版本下载口径及前端消费约定见 [综合推荐分](docs/mod-recommendation.md)。
 
+Mod 总下载数、已排除下载数、分游戏版本累计量和周期存储见 [持久下载统计](docs/download-statistics.md)。本次变更仅提交代码，尚未部署；历史部署日志不代表新增 /data 挂载已上线。
+
 
 ## 缓存和状态接口
 
-统一的SnapshotCache管理Mod、游戏及元数据响应。每次后台刷新完成数据库读取、校验和JSON编码，再原子替换该类别的完整快照；请求直接返回已编码的bytes，不查库、不重新过滤列表、不重新序列化。默认Mod列表和含Modding列表是同一份刷新数据的两个预生成视图。内存只保留响应字节和数量/时间，不再保留一份重复的业务模型列表。
+统一的SnapshotCache管理Mod、游戏及元数据响应。每次后台刷新完成数据库读取、校验和JSON编码；Mod 还需成功提交持久下载统计事务，再原子替换该类别的完整快照；请求直接返回已编码的bytes，不查库、不重新过滤列表、不重新序列化。默认Mod列表和含Modding列表是同一份刷新数据的两个预生成视图。内存只保留响应字节和数量/时间，不再保留一份重复的业务模型列表。
 
 唯一刷新周期仍使用MOD_CACHE_TIME（默认300秒，名称沿用部署兼容），同时控制Mod和游戏。移除API_CACHE_TIME及fastapi-cache2；没有第二套TTL、MISS/HIT或清理响应缓存步骤，旧X-FastAPI-Cache/ETag相关行为不再提供。模型response_model继续用于OpenAPI，刷新阶段确保业务模型有效。无需新增Redis。
 

@@ -1,24 +1,10 @@
 """Pure Mod recommendation scoring; the snapshot refresh owns the clock."""
 import math
 
-from models import ModInfoTypes, ModRelease
+from models import ModInfoTypes
 
 FRESHNESS_BONUS = 5.0
 FRESHNESS_WINDOW_SECONDS = 15 * 86400
-
-
-def total_download_count(releases: list[ModRelease] | None) -> int:
-    """Sum registered files across all versions, counting each attachment once."""
-    seen: set[int] = set()
-    total = 0
-    for release in releases or []:
-        aid, count = release.attachment_id, release.download_count
-        if (type(aid) is not int or aid <= 0
-                or type(count) is not int or count < 0 or aid in seen):
-            continue
-        seen.add(aid)
-        total += count
-    return total
 
 
 def freshness_bonus(update_timestamp: int | None, *, now: int) -> float:
@@ -31,7 +17,7 @@ def freshness_bonus(update_timestamp: int | None, *, now: int) -> float:
 
 def calculate_recommendation_score(mod: ModInfoTypes, *, now: int) -> float:
     """Return one finite score per Mod, independent of filters and language."""
-    score = math.log10(1 + total_download_count(mod.mod_releases)) + freshness_bonus(
+    score = math.log10(1 + mod.mod_download_count) + freshness_bonus(
         mod.mod_update_date, now=now)
     if not math.isfinite(score) or score < 0:
         raise ValueError('Invalid Mod recommendation score')

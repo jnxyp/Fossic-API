@@ -175,3 +175,8 @@ cython_debug/
 
 # letsencrypt generated files
 *.conf
+# Persistent statistics and consistent backups are never source/build inputs.
+data/
+*.sqlite3
+*.sqlite3-*
+*.sqlite3.*
