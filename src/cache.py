@@ -1,6 +1,7 @@
 """One manager publishes complete, pre-encoded response snapshots."""
 import datetime
 import json
+import math
 import threading
 import time
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from config import CONFIG
 from dao import ModDAO
 from db import get_session_sync
 from models import ModInfoTypes, GameInfo
+from mod_recommendation import calculate_recommendation_score
 import log
 
 logger = log.get_logger(__name__)
@@ -66,17 +68,25 @@ class SnapshotCache:
 
     def _fetch_mods(self, session: Session):
         dao = ModDAO(session)
-        mods = dao.get_all_mods()
+        source_mods = MODS.validate_python(dao.get_all_mods())
+        now = int(time.time())
+        mods = []
+        for mod in source_mods:
+            score = calculate_recommendation_score(mod, now=now)
+            # model_copy does not validate updates; never serialize a bad score as null.
+            if not math.isfinite(score) or score < 0:
+                raise ValueError('Invalid Mod recommendation score')
+            mods.append(mod.model_copy(update={'mod_recommendation_score': score}))
         # Encode concrete union variants once, retaining translator-only fields.
         responses = {
-            'mods_all': MODS.dump_json(MODS.validate_python(mods), warnings='error'),
+            'mods_all': MODS.dump_json(mods, warnings='error'),
             'mods': MODS.dump_json([m for m in mods
                 if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']], warnings='error'),
             'game_versions': _encode(dao.get_game_versions()),
             'mod_languages': _encode(dao.get_mod_languages()),
             'mod_categories': _encode(dao.get_mod_categories()),
         }
-        return Snapshot(MappingProxyType(responses), len(mods), int(time.time()))
+        return Snapshot(MappingProxyType(responses), len(mods), now)
 
     def _fetch_games(self, session: Session):
         from game_releases import GameDAO

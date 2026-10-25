@@ -300,3 +300,47 @@ def test_unknown_upload_date_preserves_download(session, timestamp):
     ModDAO(session).populate_download_counts([mod])
     assert mod.mod_releases[0].uploaded_at is None
     assert mod.mod_releases[0].download_url is not None
+
+
+def test_recommendation_preserves_payload_order_and_query_count(session, monkeypatch):
+    import cache
+    import math
+    now = 1_789_142_400
+    monkeypatch.setattr(cache.time, 'time', lambda: now)
+    session.add(ForumAttachment(aid=123, tid=1, downloads=99))
+    session.commit()
+    calls = []
+    def record(*args):
+        calls.append(1)
+    event.listen(session.bind, 'before_cursor_execute', record)
+    try:
+        dao = ModDAO(session)
+        source = dao.get_all_mods()
+        dao.get_game_versions()
+        dao.get_mod_languages()
+        dao.get_mod_categories()
+        baseline_count = len(calls)
+        calls.clear()
+        snapshot = SnapshotCache()._fetch_mods(session)
+        assert len(calls) == baseline_count
+    finally:
+        event.remove(session.bind, 'before_cursor_execute', record)
+    data = json.loads(snapshot.responses['mods_all'])
+    expected = json.loads(cache.MODS.dump_json(source))
+    assert [m['mod_info_type'] for m in data] == ['original', 'reposted', 'translated', 'original']
+    for actual, old in zip(data, expected):
+        score = actual.pop('mod_recommendation_score')
+        old.pop('mod_recommendation_score')
+        assert actual == old
+        assert math.isfinite(score) and score >= 0
+        assert 'calculated_at' not in actual and 'mod_recommendation' not in actual
+    assert json.loads(snapshot.responses['mods_all'])[0]['mod_recommendation_score'] == 7
+
+
+def test_recommendation_openapi_schema():
+    schema = main.app.openapi()['components']['schemas']
+    for name in ['ModInfoOriginal', 'ModInfoTranslated', 'ModInfoReposted']:
+        field = schema[name]['properties']['mod_recommendation_score']
+        assert field['type'] == 'number' and field['minimum'] == 0
+        assert '15' in field['description']
+    assert 'mod_recommendation_score' not in schema['GameInfo']['properties']

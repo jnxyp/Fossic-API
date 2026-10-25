@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import List, Literal
+from pydantic import Field
 from sqlmodel import SQLModel
 
 
@@ -78,6 +79,10 @@ class ModInfo(SQLModel):
     mod_short_description: str
     mod_language: str
     mod_update_date: int
+    mod_recommendation_score: float = Field(
+        default=0.0, ge=0, allow_inf_nan=False,
+        description='所有版本附件下载合计的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
+    )
     mod_publish_urls: List[str]
 
     admin_notes: AdminNotes
