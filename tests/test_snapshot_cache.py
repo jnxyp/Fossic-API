@@ -141,7 +141,7 @@ def test_mod_scores_change_only_after_refresh(session, monkeypatch):
     assert manager.refresh(session)['mods']
     after = manager.get_response('mods', 'mods')
     assert json.loads(before)[0]['mod_recommendation_score'] == 5
-    assert json.loads(after)[0]['mod_recommendation_score'] == pytest.approx(2.5)
+    assert json.loads(after)[0]['mod_recommendation_score'] == pytest.approx(1.25)
 
 
 @pytest.mark.parametrize('bad', ['raise', math.nan, math.inf, -math.inf, -1])

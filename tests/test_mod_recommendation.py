@@ -25,10 +25,19 @@ def mod(**patch):
 
 
 @pytest.mark.parametrize('days,expected', [
-    (0, 5), (3, 4), (5, 10 / 3), (7.5, 2.5), (10, 5 / 3), (15, 0), (30, 0),
+    (0, 5), (3, 3.2), (5, 20 / 9), (7.5, 1.25), (10, 5 / 9), (15, 0), (30, 0),
 ])
 def test_freshness_boundaries(days, expected):
     assert freshness_bonus(NOW - int(days * 86400), now=NOW) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize('seconds', [1, 15 * 86400 - 1, 15 * 86400, 15 * 86400 + 1])
+def test_quadratic_window_at_second_precision(seconds):
+    remaining = max(0, 1 - seconds / (15 * 86400))
+    bonus = freshness_bonus(NOW - seconds, now=NOW)
+    assert bonus == pytest.approx(5 * remaining ** 2, abs=1e-15)
+    if 0 < remaining < 1:
+        assert bonus < 5 * remaining
 
 
 @pytest.mark.parametrize('timestamp', [None, -1, 0, True, False, '2026-01-01',
@@ -45,7 +54,7 @@ def test_score_matches_formula_and_does_not_mutate_input():
     item = mod(mod_download_count=999, mod_releases=[release(1, 99), release(2, 900)],
                mod_update_date=NOW - int(7.5 * 86400))
     before = item.model_dump()
-    assert calculate_recommendation_score(item, now=NOW) == pytest.approx(5.5)
+    assert calculate_recommendation_score(item, now=NOW) == pytest.approx(4.25)
     assert item.model_dump() == before
     assert item.mod_recommendation_score == 0  # DAO default is not the computed response score.
 

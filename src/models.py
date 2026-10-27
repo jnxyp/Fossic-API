@@ -121,7 +121,7 @@ class ModInfo(SQLModel):
                     '与当前附件有效计数去重之和相加等于 mod_download_count')
     mod_recommendation_score: float = Field(
         default=0.0, ge=0, allow_inf_nan=False,
-        description='持久累计下载总量的综合推荐分；新鲜度初始5分、15天线性衰减，随Mod快照刷新',
+        description='持久累计下载总量的综合推荐分；新鲜度初始5分、15天平方衰减，随Mod快照刷新',
     )
     mod_publish_urls: List[str]
 
