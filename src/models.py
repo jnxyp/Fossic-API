@@ -109,6 +109,9 @@ class ModInfo(SQLModel):
     mod_short_description: str
     mod_language: str
     mod_update_date: int
+    mod_indexed_at: int | None = Field(default=None, gt=0, strict=True,
+        description='API首次成功观测到本帖进入正式Mod索引的UTC Unix秒；'
+                    '首次启用时的历史基线或尚未正式收录为null，不因编辑、重启或重新进入索引而重置')
     mod_ai_declaration: ModAiDeclaration = Field(
         default_factory=ModAiDeclaration.undeclared,
         description='发布者自愿填写的生成式AI声明，不代表质量评价或平台检测；'

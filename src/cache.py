@@ -18,6 +18,7 @@ from download_stats import DownloadStatsStore, checked_count, current_releases
 from db import get_session_sync
 from models import ModInfoTypes, GameInfo
 from mod_recommendation import calculate_recommendation_score
+from mod_index_time import observe_index_times
 import log
 
 logger = log.get_logger(__name__)
@@ -78,8 +79,13 @@ class SnapshotCache:
             'mod_languages': dao.get_mod_languages(),
             'mod_categories': dao.get_mod_categories(),
         }
+        formal_mods = [m for m in source_mods
+                       if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']]
         now = int(time.time())
         with self.stats_store.write_transaction() as connection:
+            indexed_at = observe_index_times(connection,
+                [m.thread_meta.tid for m in source_mods],
+                [m.thread_meta.tid for m in formal_mods], now=now)
             self.stats_store.apply_observations(connection, source_mods, now=now)
             summaries = self.stats_store.get_mod_summaries(
                 connection, [mod.thread_meta.tid for mod in source_mods])
@@ -93,6 +99,7 @@ class SnapshotCache:
                 # Validate the complete updated model: model_copy(update=...) skips validation.
                 # Version breakdowns stay internal to the statistics ledger.
                 enriched = mod.__class__.model_validate({**mod.model_dump(),
+                    'mod_indexed_at': indexed_at[mod.thread_meta.tid],
                     'mod_download_count': summary['mod_download_count'],
                     'mod_excluded_download_count': excluded})
                 score = calculate_recommendation_score(enriched, now=now)

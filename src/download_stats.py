@@ -8,6 +8,7 @@ import tempfile
 import time as clock
 
 from models import ModInfoTypes, ModRelease
+from mod_index_time import initialize_schema
 import log
 
 logger = log.get_logger(__name__)
@@ -133,6 +134,7 @@ class DownloadStatsStore:
                         'download_increment,first_observed_at,last_observed_at'),
                 ):
                     connection.execute(f'SELECT {columns} FROM {table} LIMIT 0')
+                initialize_schema(connection)
                 if connection.execute('PRAGMA foreign_key_check').fetchone():
                     raise ValueError('Invalid download statistics references')
                 connection.commit()
