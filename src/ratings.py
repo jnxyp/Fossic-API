@@ -69,7 +69,7 @@ def read_ratings(session: Session, tids: list[int]) -> dict[int, dict]:
             data = {'score': None, 'rating_count': 0}
         else:
             count, score = thread['rating_count'], thread['display_score']
-            if (thread['algorithm_version'] != 1 or count < 0
+            if (thread['algorithm_version'] != 2 or count < 0
                     or (count < 10 and score is not None) or (count >= 10 and score is None)
                     or (score is not None and not Decimal(0) <= Decimal(str(score)) <= Decimal(5))):
                 raise RatingUnavailable('Invalid persisted summary')

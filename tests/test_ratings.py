@@ -15,7 +15,7 @@ def db():
     with engine.begin() as connection:
         for ddl in [
             "CREATE TABLE pre_forum_thread(tid INTEGER PRIMARY KEY, fid INTEGER DEFAULT 46, sortid INTEGER DEFAULT 1, displayorder INTEGER DEFAULT 0, readperm INTEGER DEFAULT 0, price INTEGER DEFAULT 0, special INTEGER DEFAULT 0, recommend_add INTEGER DEFAULT 0, recommend_sub INTEGER DEFAULT 0)",
-            "CREATE TABLE pre_forum_modrating_summary(tid INTEGER PRIMARY KEY, rating_count INTEGER, display_score NUMERIC, algorithm_version INTEGER DEFAULT 1)",
+            "CREATE TABLE pre_forum_modrating_summary(tid INTEGER PRIMARY KEY, rating_count INTEGER, display_score NUMERIC, algorithm_version INTEGER DEFAULT 2)",
             "CREATE TABLE pre_forum_forum(fid INTEGER PRIMARY KEY, fup INTEGER, type TEXT, status INTEGER DEFAULT 1)",
             "CREATE TABLE pre_forum_forumfield(fid INTEGER PRIMARY KEY, password TEXT DEFAULT '', viewperm TEXT DEFAULT '', formulaperm TEXT DEFAULT '', price INTEGER DEFAULT 0)",
             "CREATE TABLE pre_common_usergroup_field(groupid INTEGER PRIMARY KEY, readaccess INTEGER)",
@@ -23,7 +23,7 @@ def db():
             "INSERT INTO pre_forum_forum VALUES(1,0,'group',1),(46,1,'forum',1),(71,46,'sub',1)",
             "INSERT INTO pre_forum_forumfield(fid) VALUES(1),(46),(71)",
             "INSERT INTO pre_forum_thread(tid) VALUES(100),(101),(102),(103)",
-            "INSERT INTO pre_forum_modrating_summary VALUES(100,10,0,1),(101,9,NULL,1),(102,20,4.47,1)",
+            "INSERT INTO pre_forum_modrating_summary VALUES(100,10,0,2),(101,9,NULL,2),(102,20,4.47,2)",
         ]:
             connection.execute(text(ddl))
     with Session(engine) as session:
@@ -68,7 +68,8 @@ def test_subforum_modding_and_explicit_guest_group(db):
 
 
 @pytest.mark.parametrize('sql', [
-    'UPDATE pre_forum_modrating_summary SET algorithm_version=2',
+    'UPDATE pre_forum_modrating_summary SET algorithm_version=1',
+    'UPDATE pre_forum_modrating_summary SET algorithm_version=3',
     'UPDATE pre_forum_modrating_summary SET display_score=6',
     'UPDATE pre_forum_modrating_summary SET display_score=NULL WHERE tid=100',
     'UPDATE pre_forum_modrating_summary SET rating_count=-1',
@@ -111,3 +112,9 @@ def test_routes_contract_permissions_and_unavailable(db):
         db.execute(text('DROP TABLE pre_forum_modrating_summary'))
         response = client.get('/mods/101/rating')
         assert response.status_code == 503 and 'score' not in response.json()
+
+
+def test_v2_reads_compressed_count_and_php_score_without_recomputing(db):
+    db.execute(text('UPDATE pre_forum_thread SET recommend_add=303,recommend_sub=6 WHERE tid=102'))
+    db.execute(text('UPDATE pre_forum_modrating_summary SET rating_count=21,display_score=4.14 WHERE tid=102'))
+    assert read_ratings(db, [102]) == {102: {'score': 4.14, 'rating_count': 21}}

@@ -22,10 +22,14 @@ The existing API DB user needs SELECT on four additional tables:
 - `pre_forum_forumfield`
 - `pre_common_usergroup_field`
 
-Retain existing `pre_forum_thread` SELECT; **do not grant write, DDL, detail rating table or user/member-table access**. Query failures after missing grants return 503. Rollback API code without dropping forum rating data. Forum/API version 1 contract must remain aligned; algorithm or threshold changes require a reviewed backend recomputation, not a local Python formula.
+Retain existing `pre_forum_thread` SELECT; **do not grant write, DDL, detail rating table or user/member-table access**. Query failures after missing grants return 503. Rollback API code without dropping forum rating data. Forum/API algorithm version 2 contract must remain aligned; algorithm or threshold changes require a reviewed backend recomputation, not a local Python formula.
 
 ## Tests
 
 `python -m pytest -q tests/test_ratings.py` uses isolated SQLite, never a developer/production DB. Covers 0 vs NULL, exact public payload, bounded queries, all three Mod sorts, Modding and guest group matching, parent ACL, private/missing/deleted threads, corrupt/missing migration results, batch limits and storage failure. Existing API regressions must also pass.
 
 Real FPM/MySQL/API + sandboxed Windows Chrome integration lives in the companion forum's `tests/mod-rating-local-stack.cjs` and uses only owned synthetic LocalStack fixtures. No real business data or credentials enter Git.
+
+## Algorithm v2 alignment (pending deployment)
+
+The forum compresses each frozen historical counter separately: U=ceil(sqrt(up)), D=ceil(sqrt(down)); effective legacy count U+D, legacy score sum 4U. New votes retain native group-weight snapshots and are not compressed. The ten-rating gate uses effective legacy count plus new voter count. Public `rating_count` is therefore an effective count, not raw historical voters. PHP still owns all score computation; this API only accepts persisted algorithm_version=2. Pre-release v1 rows produce503 until the forum's explicit guarded rebase-legacy upgrade completes; do not accept mixed versions or recalculate in Python.
