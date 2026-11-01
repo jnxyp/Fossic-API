@@ -118,3 +118,56 @@ def test_v2_reads_compressed_count_and_php_score_without_recomputing(db):
     db.execute(text('UPDATE pre_forum_thread SET recommend_add=303,recommend_sub=6 WHERE tid=102'))
     db.execute(text('UPDATE pre_forum_modrating_summary SET rating_count=21,display_score=4.14 WHERE tid=102'))
     assert read_ratings(db, [102]) == {102: {'score': 4.14, 'rating_count': 21}}
+
+
+# PHP serialize(array('', '', 'message'=>'', 'medal'=>NULL, 'users'=>'')),
+# observed on production public boards; no formula/user/medal restriction exists.
+EMPTY_NATIVE_FORMULA = 'a:5:{i:0;s:0:"";i:1;s:0:"";s:7:"message";s:0:"";s:5:"medal";N;s:5:"users";s:0:"";}'
+
+
+@pytest.mark.parametrize('fid', [1, 46, 71])
+def test_canonical_empty_formula_on_public_forum_and_ancestors(db, fid):
+    db.execute(text('UPDATE pre_forum_thread SET fid=71'))
+    db.execute(text('UPDATE pre_forum_forumfield SET formulaperm=:rule WHERE fid=:fid'),
+               {'rule': EMPTY_NATIVE_FORMULA, 'fid': fid})
+    assert read_ratings(db, [100, 101]) == {
+        100: {'score': 0.0, 'rating_count': 10}, 101: {'score': None, 'rating_count': 9}}
+
+
+@pytest.mark.parametrize('rule', [
+    EMPTY_NATIVE_FORMULA.replace('i:0;s:0:"";', 'i:0;s:1:"x";'),
+    EMPTY_NATIVE_FORMULA.replace('i:1;s:0:"";', 'i:1;s:1:"1";'),
+    EMPTY_NATIVE_FORMULA.replace('s:7:"message";s:0:"";', 's:7:"message";s:1:"x";'),
+    EMPTY_NATIVE_FORMULA.replace('s:5:"medal";N;', 's:5:"medal";a:1:{i:0;i:1;}'),
+    EMPTY_NATIVE_FORMULA.replace('s:5:"users";s:0:"";', 's:5:"users";s:1:"x";'),
+    EMPTY_NATIVE_FORMULA.replace('a:5:', 'a:6:'),
+    EMPTY_NATIVE_FORMULA[:-1],
+    ' ' + EMPTY_NATIVE_FORMULA,
+    EMPTY_NATIVE_FORMULA + ' ',
+    'O:8:"stdClass":0:{}',
+    'a:0:{}',
+    '{"formula":""}',
+])
+@pytest.mark.parametrize('fid', [1, 46])
+def test_nonempty_unknown_or_malformed_formula_stays_private(db, fid, rule):
+    db.execute(text('UPDATE pre_forum_forumfield SET formulaperm=:rule WHERE fid=:fid'),
+               {'rule': rule, 'fid': fid})
+    assert read_ratings(db, [100]) == {}
+
+
+def test_routes_accept_only_canonical_empty_formula_without_changing_contract(db):
+    db.execute(text('UPDATE pre_forum_forumfield SET formulaperm=:rule'),
+               {'rule': EMPTY_NATIVE_FORMULA})
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_session] = lambda: db
+    with TestClient(app) as client:
+        response = client.get('/mods/100/rating')
+        assert response.status_code == 200
+        assert response.json() == {'score': 0.0, 'rating_count': 10}
+        assert response.headers['cache-control'] == 'no-store'
+        response = client.get('/mods/ratings?tid=100&tid=101')
+        assert response.json() == {'100': {'score': 0.0, 'rating_count': 10},
+                                   '101': {'score': None, 'rating_count': 9}}
+        db.execute(text("UPDATE pre_forum_forumfield SET formulaperm='formula' WHERE fid=1"))
+        assert client.get('/mods/100/rating').status_code == 404

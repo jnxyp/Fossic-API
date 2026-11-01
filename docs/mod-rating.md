@@ -33,3 +33,7 @@ Real FPM/MySQL/API + sandboxed Windows Chrome integration lives in the companion
 ## Algorithm v2 alignment (pending deployment)
 
 The forum compresses each frozen historical counter separately: U=ceil(sqrt(up)), D=ceil(sqrt(down)); effective legacy count U+D, legacy score sum 4U. New votes retain native group-weight snapshots and are not compressed. The ten-rating gate uses effective legacy count plus new voter count. Public `rating_count` is therefore an effective count, not raw historical voters. PHP still owns all score computation; this API only accepts persisted algorithm_version=2. Pre-release v1 rows produce503 until the forum's explicit guarded rebase-legacy upgrade completes; do not accept mixed versions or recalculate in Python.
+
+## Native empty permission wrapper compatibility
+
+Production boards store the native five-field empty `formulaperm` wrapper (empty text/expression/message/users, NULL medal), not an empty SQL string. The read API recognizes only that exact canonical serialization as unrestricted. Arbitrary serialization, objects, unknown/extra fields, whitespace variants, malformed input and nonempty expression/user/medal rules remain denied; no PHP deserializer or formula evaluator is added. Board/password/readaccess/paywall/ancestor checks and the three-query bound remain unchanged. No production permission setting or stored rule is edited.

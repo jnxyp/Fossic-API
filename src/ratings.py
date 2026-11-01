@@ -15,12 +15,18 @@ class RatingUnavailable(RuntimeError):
     pass
 
 
+# Exact native empty form only: no PHP deserialization/evaluation, and no attempt
+# to interpret arbitrary permission formulas. Any other nonempty value is denied.
+_EMPTY_NATIVE_FORMULA = 'a:5:{i:0;s:0:"";i:1;s:0:"";s:7:"message";s:0:"";s:5:"medal";N;s:5:"users";s:0:"";}'
+
+
 def public_forum(row, guest_access: int) -> bool:
     # Conservative guest ACL: never expose paid/password/formula/group-only content.
     # Parent categories and sub-forum ancestors must pass the same rules.
     if row is None or row['status'] != 1 or row['field_fid'] is None:
         return False
-    if row['password'] or row['formulaperm'] or row['price']:
+    has_formula = bool(row['formulaperm']) and row['formulaperm'] != _EMPTY_NATIVE_FORMULA
+    if row['password'] or has_formula or row['price']:
         return False
     return ('7' in row['viewperm'].split('\t')) if row['viewperm'] else guest_access > 0
 
