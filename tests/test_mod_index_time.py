@@ -114,6 +114,8 @@ def manager_with_source(monkeypatch, store, source):
         def get_mod_categories(self):
             return {}
     monkeypatch.setattr(cache, 'ModDAO', DAO)
+    # This suite isolates SQLite index-time semantics; real rating I/O is tested separately.
+    monkeypatch.setattr(cache, 'read_rating_snapshot', lambda *_: {})
     manager = SnapshotCache(store)
     monkeypatch.setattr(manager, '_fetch_games', lambda _: manager.get_snapshot('games'))
     return manager

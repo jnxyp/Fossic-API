@@ -41,8 +41,6 @@ class ThreadMeta(SQLModel):
     uid: int
     fid: int # 版块ID
     featured_level: ThreadFeaturedLevel
-    recommend_weight: int  # 推荐数
-    heats: int  # 累计参与热度，不含时间衰减
     views: int  # 论坛已落库的累计浏览量
 
 
@@ -93,8 +91,27 @@ class ModAiDeclaration(BaseModel):
                    audio='undeclared', text='undeclared')
 
 
+class ModRating(BaseModel):
+    """Forum-computed public stars, distinct from the download recommendation score."""
+    model_config = ConfigDict(extra='forbid')
+
+    score: float | None = Field(ge=0, le=5, allow_inf_nan=False, strict=True,
+        description='PHP持久化的0–5最终展示分数；不足10个有效评分时为null，非前端/API重算')
+    count: int = Field(ge=0, strict=True,
+        description='压缩后的历史有效票数加新评分人数，不是原始历史投票人数')
+
+    @model_validator(mode='after')
+    def validate_threshold(self) -> Self:
+        if (self.count < 10) != (self.score is None):
+            raise ValueError('Rating score must match the ten-rating display threshold')
+        return self
+
+
 class ModInfo(SQLModel):
     mod_info_type: ModInfoType
+    mod_rating: ModRating | None = Field(default=None,
+        description='随Mod快照刷新的匿名评分摘要；访客不可公开读取时整体为null。'
+                    '未评分且可公开读取时为{score:null,count:0}；不含评分身份或权重')
     mod_id: str
     mod_name_cn: str
     mod_author_names: List[str] = []

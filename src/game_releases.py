@@ -86,7 +86,7 @@ class GameDAO(BaseDAO):
                     game_publish_urls=[get_thread_url(thread.tid)],
                     thread_meta=ThreadMeta(title=thread.subject, tid=thread.tid, uid=thread.authorid, fid=thread.fid,
                         featured_level=ThreadFeaturedLevel.from_digest(thread.digest),
-                        recommend_weight=thread.recommends, heats=thread.heats, views=thread.views))
+                        views=thread.views))
             game = games[thread.tid]
             if option.identifier == 'gameReleaseInfoMapping':
                 game.game_releases = parse_game_releases(value.value, thread.tid)

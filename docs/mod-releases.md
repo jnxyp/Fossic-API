@@ -1,5 +1,7 @@
 # Mod 发布元数据
 
+> API #12 协议变更（实现待部署）：Mod 与游戏响应及 OpenAPI 已移除 `thread_meta.recommend_weight`、`thread_meta.heats`；数据库原始列保留。下文相关字段描述仅代表历史版本。Mod 列表新增评分及缓存边界见 [评分协议](mod-rating.md#mod-list-rating-summary--api-12-implementation-not-deployed)。
+
 ## 行内下载扩展（2026-09-13 已部署）
 
 Release 补充可空 `file_name`、`file_size`（字节）、`download_url`。缓存刷新时根据附件索引 tableid，按实际分表分组批查明细，每批最多 500 个；不逐项查询。缺失或跨帖明细只影响对应文件。有效非图片文件且作者允许直下载时，URL 为 `https://www.fossic.org/forum.php?mod=misc&action=moddownload&aid=<ID>`；其他情况为 null。它是入口而非下载权限承诺；入口即时重查，原论坛流程执行最终权限及计数。不返回签名或 CDN 地址，不探测远端对象。
