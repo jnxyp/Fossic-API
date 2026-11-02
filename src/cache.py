@@ -19,6 +19,7 @@ from db import get_session_sync
 from models import ModInfoTypes, GameInfo
 from mod_recommendation import calculate_recommendation_score
 from mod_index_time import observe_index_times
+from ratings import read_rating_snapshot
 import log
 
 logger = log.get_logger(__name__)
@@ -79,6 +80,7 @@ class SnapshotCache:
             'mod_languages': dao.get_mod_languages(),
             'mod_categories': dao.get_mod_categories(),
         }
+        ratings = read_rating_snapshot(session, [m.thread_meta.tid for m in source_mods])
         formal_mods = [m for m in source_mods
                        if m.thread_meta.fid not in CONFIG['fossic']['modding_fids']]
         now = int(time.time())
@@ -98,7 +100,10 @@ class SnapshotCache:
                 excluded = checked_count(summary['mod_download_count'] - displayed)
                 # Validate the complete updated model: model_copy(update=...) skips validation.
                 # Version breakdowns stay internal to the statistics ledger.
+                rating = ratings.get(mod.thread_meta.tid)
                 enriched = mod.__class__.model_validate({**mod.model_dump(),
+                    'mod_rating': None if rating is None else {
+                        'score': rating['score'], 'count': rating['rating_count']},
                     'mod_indexed_at': indexed_at[mod.thread_meta.tid],
                     'mod_download_count': summary['mod_download_count'],
                     'mod_excluded_download_count': excluded})

@@ -74,3 +74,5 @@ count是含Modding的Mod总数或游戏帖数。各类别最后成功刷新时�
 安全加固改动、兼容边界与本地验证见 [2026-10-21 安全修复（待审核，未部署）](docs/security-2026-10-21.md)。
 
 Mod 首次正式收录时间 `mod_indexed_at` 的语义、历史 NULL 基线和兼容回退见 [首次收录时间](docs/mod-index-time.md)。
+
+Mod 列表 `mod_rating: {score, count}`、独立实时评分接口及 Mod/游戏旧元数据删除说明见 [评分协议](docs/mod-rating.md)。列表评分随现有快照刷新，不具备独立评分接口的实时权限语义。

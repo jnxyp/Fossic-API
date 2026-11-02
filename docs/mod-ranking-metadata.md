@@ -1,5 +1,7 @@
 # Mod 索引排序元数据调研与扩展方案
 
+> API #12 协议变更（实现待部署）：Mod 与游戏响应及 OpenAPI 已移除 `thread_meta.recommend_weight`、`thread_meta.heats`；数据库原始列保留。下文相关字段描述仅代表历史版本。Mod 列表新增评分及缓存边界见 [评分协议](mod-rating.md#mod-list-rating-summary--api-12-implementation-not-deployed)。
+
 > 本文的确认实施范围记录历史元数据扩展，不是综合推荐的当前实现说明。新增 `mod_recommendation_score` 的契约见 [综合推荐分](mod-recommendation.md)：所有版本下载量跨版本去重后合计，随 Mod 快照评分。本文按所选版本求和的消费方式仍适用于前端独立的「下载次数」排序。
 
 ## 本轮确认实施范围

@@ -76,8 +76,6 @@ class ModDAO(BaseDAO):
                     "uid": thread.authorid,
                     "fid": thread.fid,
                     "featured_level": ThreadFeaturedLevel.from_digest(thread.digest),
-                    "recommend_weight": thread.recommends,
-                    "heats": thread.heats,
                     "views": thread.views,
                 }
 

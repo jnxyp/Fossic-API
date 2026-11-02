@@ -12,6 +12,7 @@ from dao import ModDAO
 from tables import ForumThread, ForumTypeOption, ForumTypeOptionVar
 from tables import ForumAttachment, ATTACHMENT_DETAILS
 from models import ModRelease
+from rating_fixtures import create_rating_schema
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
 
@@ -25,6 +26,7 @@ def session():
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
+        create_rating_schema(session)
         definitions = {
             9: ('modVersion', rules('modVersion_098x=0.98')),
             13: ('modSafeRm', rules('1=是\r\n2=否')),
@@ -104,7 +106,7 @@ def test_route_snapshot_views_and_refresh(session, monkeypatch):
         assert data[0]['mod_releases'][0]['game_version'] == '0.98'
         assert data[0]['mod_releases'][0]['download_count'] is None
         assert all(m['thread_meta']['title'] == 'test' for m in data)
-        assert data[0]['thread_meta']['heats'] == 28
+        assert not {'heats', 'recommend_weight'} & data[0]['thread_meta'].keys()
         assert data[0]['thread_meta']['views'] == 1000
         assert data[1]['mod_releases'] is None
         assert data[1]['mod_allow_direct_download'] is False
@@ -277,7 +279,7 @@ def test_new_statistics_cached_without_request_sql(session, monkeypatch):
             for _ in range(2):
                 result = client.get('/mods').json()[0]
                 assert result['mod_releases'][0]['download_count'] == 42
-                assert result['thread_meta']['heats'] == 28
+                assert not {'heats', 'recommend_weight'} & result['thread_meta'].keys()
                 assert result['thread_meta']['views'] == 1000
         attachment = session.get(ForumAttachment, 123)
         attachment.downloads = 50
@@ -286,7 +288,8 @@ def test_new_statistics_cached_without_request_sql(session, monkeypatch):
         assert snapshot_cache.refresh(session)['mods']
         assert client.get('/mods').json()[0]['mod_releases'][0]['download_count'] == 50
         schema = client.get('/openapi.json').json()['components']['schemas']
-        assert {'heats', 'views'} <= schema['ThreadMeta']['properties'].keys()
+        assert 'views' in schema['ThreadMeta']['properties']
+        assert not {'heats', 'recommend_weight'} & schema['ThreadMeta']['properties'].keys()
         assert 'download_count' in schema['ModRelease']['properties']
 
 
@@ -322,7 +325,7 @@ def test_recommendation_preserves_payload_order_and_query_count(session, monkeyp
         baseline_count = len(calls)
         calls.clear()
         snapshot = SnapshotCache()._fetch_mods(session)
-        assert len(calls) == baseline_count
+        assert len(calls) == baseline_count + 3
     finally:
         event.remove(session.bind, 'before_cursor_execute', record)
     data = json.loads(snapshot.responses['mods_all'])
@@ -332,7 +335,7 @@ def test_recommendation_preserves_payload_order_and_query_count(session, monkeyp
         score = actual.pop('mod_recommendation_score')
         old.pop('mod_recommendation_score')
         assert 'mod_download_counts_by_game_version' not in actual
-        for key in ('mod_download_count', 'mod_excluded_download_count'):
+        for key in ('mod_download_count', 'mod_excluded_download_count', 'mod_rating'):
             actual.pop(key)
             old.pop(key)
         assert actual == old

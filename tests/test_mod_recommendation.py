@@ -20,7 +20,7 @@ def mod(**patch):
         'mod_safe_remove': False, 'mod_short_description': '', 'mod_language': 'chinese',
         'mod_update_date': NOW, 'mod_publish_urls': [], 'mod_category': 'utility',
         'admin_notes': {}, 'thread_meta': {'title': 'test', 'tid': 1, 'uid': 1, 'fid': 46,
-            'featured_level': 0, 'recommend_weight': 0, 'heats': 0, 'views': 0}, **patch,
+            'featured_level': 0, 'views': 0}, **patch,
     })
 
 

@@ -1,5 +1,7 @@
 # 游戏发布 API
 
+> API #12 协议变更（实现待部署）：Mod 与游戏响应及 OpenAPI 已移除 `thread_meta.recommend_weight`、`thread_meta.heats`；数据库原始列保留。下文相关字段描述仅代表历史版本。Mod 列表新增评分及缓存边界见 [评分协议](mod-rating.md#mod-list-rating-summary--api-12-implementation-not-deployed)。
+
 `GET /games` 返回游戏发布分类（sortid=9、当前公开版块 fid=39）的帖子列表，按 tid 倒序。字段风格与 `/mods` 一致，复用 `thread_meta`，不从文件名推测版本或平台。
 
 - 顶层：`game_release_name`、`game_release_version`、`game_author_names`、`game_allow_direct_download`、`game_publish_urls`、`game_releases`、`thread_meta`。
