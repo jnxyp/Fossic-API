@@ -122,7 +122,6 @@ def test_canonical_empty_wrapper_is_public_for_list_and_live(session):
     'UPDATE pre_forum_modrating_summary SET display_score=6 WHERE tid=1',
     'UPDATE pre_forum_modrating_summary SET display_score=NULL WHERE tid=1',
     'UPDATE pre_forum_modrating_summary SET display_score=1 WHERE tid=3',
-    'UPDATE pre_forum_thread SET recommend_add=1 WHERE tid=4',
     'DROP TABLE pre_forum_modrating_summary',
     'DROP TABLE pre_common_usergroup_field',
 ])
@@ -199,3 +198,32 @@ def test_openapi_lists_only_new_mod_rating_fields_and_preserves_live_contract():
         assert 'mod_rating' in schemas[name]['properties']
         assert 'mod_recommendation_score' in schemas[name]['properties']
     assert 'mod_rating' not in schemas['GameInfo']['properties']
+
+
+@pytest.mark.parametrize('tid', [1, 2, 3, 4])
+def test_missing_summary_with_legacy_votes_does_not_block_snapshot(session, monkeypatch, tid):
+    seed(session)
+    manager = SnapshotCache()
+    monkeypatch.setattr(cache.time, 'time', lambda: 1_800_000_000)
+    assert manager.refresh(session) == {'mods': True, 'games': True}
+    previous = manager.get_snapshot('mods')
+    previous_item = rows(manager, True)[tid]
+    session.execute(text('DELETE FROM pre_forum_modrating_summary WHERE tid=:tid'), {'tid': tid})
+    session.execute(text('UPDATE pre_forum_thread SET recommend_add=2,recommend_sub=0 '
+                         'WHERE tid=:tid'), {'tid': tid})
+    session.commit()
+    monkeypatch.setattr(cache.time, 'time', lambda: 1_800_000_300)
+    assert manager.refresh(session) == {'mods': True, 'games': True}
+    assert manager.get_snapshot('mods') is not previous
+    assert manager.get_status()['mods']['last_updated'] == 1_800_000_300
+    current = rows(manager, True)[tid]
+    assert current['mod_rating'] == {'score': None, 'count': 0}
+    if tid != 4:  # Modding is only included in the complete view.
+        assert rows(manager)[tid] == current
+    assert current['mod_download_count'] >= previous_item['mod_download_count']
+    assert current['mod_indexed_at'] == previous_item['mod_indexed_at']
+    assert read_ratings(session, [tid])[tid] == {'score': None, 'rating_count': 0}
+    assert session.execute(text('SELECT COUNT(*) FROM pre_forum_modrating_summary '
+                                'WHERE tid=:tid'), {'tid': tid}).scalar_one() == 0
+    assert session.execute(text('SELECT recommend_add,recommend_sub FROM pre_forum_thread '
+                                'WHERE tid=:tid'), {'tid': tid}).one() == (2, 0)

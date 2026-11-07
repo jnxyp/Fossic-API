@@ -2,7 +2,7 @@
 
 Requires the companion forum migration and PHP rating implementation. This API never computes or writes ratings.
 
-- `GET /mods/{tid}/rating` → exactly `{"score":4.47,"rating_count":23}`. Below ten ratings: `score:null`; ten zero ratings: `score:0`. A new unrated thread returns NULL/0. A missing summary with existing legacy votes is a migration error (503), not an empty result.
+- `GET /mods/{tid}/rating` → exactly `{"score":4.47,"rating_count":23}`. Below ten ratings: `score:null`; ten zero ratings: `score:0`. Any public eligible thread without a persisted summary returns NULL/0, including a later-converted Mod with old recommendations. Reads never seed a summary or infer a rating from legacy counters; missing tables/grants and invalid existing summaries still fail (503).
 - `GET /mods/ratings?tid=123&tid=456` → ID-keyed objects of the same two fields. 1–100 IDs; omit nonpublic/non-Mod/missing IDs. Invalid IDs/oversized batch return 422. No user IDs, raw mean, weights, distribution, own score or other details.
 - Single absent/private/non-Mod: 404. Unavailable schema/query, unsupported algorithm or inconsistent persisted summary: 503, never a fabricated zero.
 - PHP persists full precision `score` and rounded `display_score`; we select `display_score`, with no Python/frontend copy of the weighting/root formula.
@@ -52,8 +52,9 @@ field on original, translated and reposted Mods. Games do not receive this field
   neither Python nor the frontend recomputes the forum rating formula.
 - `count` maps to the existing effective `rating_count`: compressed historical
   votes plus new voter count, not an independently verified historical user count.
-- Below ten effective ratings: `{"score":null,"count":9}`. Public, unrated and
-  without unmigrated legacy votes: `{"score":null,"count":0}`. At or above ten,
+- Below ten effective ratings: `{"score":null,"count":9}`. A public eligible Mod
+  with no summary is unrated: `{"score":null,"count":0}`, regardless of old
+  recommendation counters (including threads later converted into Mods). At or above ten,
   a genuine zero score stays zero, not null.
 - When guest access is denied or the thread is no longer eligible, the entire
   `mod_rating` is null. This does not change the existing list's item filtering.
@@ -71,9 +72,13 @@ thread/summary rows in bound batches of at most 100 IDs, and reads forum metadat
 and guest permissions once: `ceil(unique_ids/100) + 2` rating SELECTs for nonempty
 lists, zero for empty lists. No detail-table aggregates or additional DB grants
 are required. All forum reads finish before the SQLite download-statistics write
-transaction. Missing schema/grants, corrupt summaries, unsupported algorithms or
-missing legacy seeds fail the Mod refresh without publishing partial data or
-fabricating zero ratings; games refresh independently. No new request-time list
+transaction. Missing schema/grants, corrupt existing summaries or unsupported
+algorithms still fail the Mod refresh without publishing partial data; games
+refresh independently. An absent summary row is an ordinary unrated result, not
+a refresh failure: no legacy seed, backfill, or forum write is performed. Existing
+persisted histories and the forum's first-vote write path are unchanged. This policy
+does not distinguish why a summary is absent; it never claims that legacy votes
+were migrated or counted. No new request-time list
 SQL, writes to forum tables, migrations or deployment settings are added.
 
 ### Removed metadata (breaking response change)

@@ -73,9 +73,8 @@ def test_subforum_modding_and_explicit_guest_group(db):
     'UPDATE pre_forum_modrating_summary SET display_score=6',
     'UPDATE pre_forum_modrating_summary SET display_score=NULL WHERE tid=100',
     'UPDATE pre_forum_modrating_summary SET rating_count=-1',
-    'UPDATE pre_forum_thread SET recommend_add=1 WHERE tid=103',
 ])
-def test_invalid_or_unmigrated_result_is_not_zero(db, sql):
+def test_invalid_persisted_result_is_not_zero(db, sql):
     db.execute(text(sql))
     with pytest.raises(RatingUnavailable):
         read_ratings(db, [100, 103])
@@ -171,3 +170,53 @@ def test_routes_accept_only_canonical_empty_formula_without_changing_contract(db
                                    '101': {'score': None, 'rating_count': 9}}
         db.execute(text("UPDATE pre_forum_forumfield SET formulaperm='formula' WHERE fid=1"))
         assert client.get('/mods/100/rating').status_code == 404
+
+
+@pytest.mark.parametrize('sortid', [1, 2, 3])
+@pytest.mark.parametrize('up,down', [(0, 0), (2, 0), (0, 2), (303, 6)])
+def test_converted_thread_without_summary_is_unrated_and_read_only(db, sortid, up, down):
+    db.execute(text('UPDATE pre_forum_thread SET sortid=0,recommend_add=:up,'
+                    'recommend_sub=:down WHERE tid=103'), {'up': up, 'down': down})
+    assert read_ratings(db, [103]) == {}
+    db.execute(text('UPDATE pre_forum_thread SET sortid=:sortid WHERE tid=103'),
+               {'sortid': sortid})
+    statements = []
+    def track(*args):
+        statements.append(args[2])
+    event.listen(db.bind, 'before_cursor_execute', track)
+    try:
+        result = read_ratings(db, [100, 103])
+    finally:
+        event.remove(db.bind, 'before_cursor_execute', track)
+    assert result == {100: {'score': 0.0, 'rating_count': 10},
+                      103: {'score': None, 'rating_count': 0}}
+    assert len(statements) == 3
+    assert all(sql.lstrip().upper().startswith('SELECT') for sql in statements)
+    assert db.execute(text('SELECT recommend_add,recommend_sub FROM pre_forum_thread '
+                           'WHERE tid=103')).one() == (up, down)
+    assert db.execute(text('SELECT COUNT(*) FROM pre_forum_modrating_summary '
+                           'WHERE tid=103')).scalar_one() == 0
+
+
+def test_missing_summary_live_routes_return_unrated_without_masking_failures(db):
+    db.execute(text('UPDATE pre_forum_thread SET recommend_add=2 WHERE tid=103'))
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_session] = lambda: db
+    with TestClient(app) as client:
+        single = client.get('/mods/103/rating')
+        assert single.status_code == 200
+        assert single.json() == {'score': None, 'rating_count': 0}
+        assert single.headers['cache-control'] == 'no-store'
+        batch = client.get('/mods/ratings?tid=100&tid=103')
+        assert batch.status_code == 200
+        assert batch.json() == {'100': {'score': 0.0, 'rating_count': 10},
+                                '103': {'score': None, 'rating_count': 0}}
+        assert batch.headers['cache-control'] == 'no-store'
+        db.execute(text("UPDATE pre_forum_forumfield SET viewperm='17' WHERE fid=46"))
+        assert client.get('/mods/103/rating').status_code == 404
+        db.execute(text("UPDATE pre_forum_forumfield SET viewperm='' WHERE fid=46"))
+        db.execute(text('UPDATE pre_forum_modrating_summary SET algorithm_version=1 WHERE tid=100'))
+        assert client.get('/mods/ratings?tid=100&tid=103').status_code == 503
+        db.execute(text('DROP TABLE pre_forum_modrating_summary'))
+        assert client.get('/mods/103/rating').status_code == 503

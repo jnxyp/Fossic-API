@@ -55,7 +55,7 @@ def _read_ratings(session: Session, tids: list[int]) -> dict[int, dict]:
         return {}
     # Fixed identifiers and bound IDs only; metadata is read once per full refresh.
     statement = text("""
-        SELECT t.tid,t.fid,t.readperm,t.price,t.special,t.recommend_add,t.recommend_sub,
+        SELECT t.tid,t.fid,t.readperm,t.price,t.special,
                s.tid AS summary_tid,s.rating_count,s.display_score,s.algorithm_version
         FROM pre_forum_thread t LEFT JOIN pre_forum_modrating_summary s ON s.tid=t.tid
         WHERE t.tid IN :tids AND t.displayorder>=0 AND t.sortid IN (1,2,3)
@@ -93,8 +93,8 @@ def _read_ratings(session: Session, tids: list[int]) -> dict[int, dict]:
         if not visible:
             continue
         if thread['summary_tid'] is None:
-            if thread['recommend_add'] or thread['recommend_sub']:
-                raise RatingUnavailable('Legacy seed missing')
+            # Later-converted Mods may have legacy recommendations but no summary.
+            # Missing rows mean unrated; this read path never seeds or counts old votes.
             data = {'score': None, 'rating_count': 0}
         else:
             count, score = thread['rating_count'], thread['display_score']
